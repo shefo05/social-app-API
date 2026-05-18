@@ -12,7 +12,7 @@ import { s3CloudProvider } from "./common/cloud/s3/init";
 import { pipeline } from "node:stream";
 import { promisify } from "node:util";
 import { createHandler } from "graphql-http/lib/use/express";
-import { GraphQLObjectType, GraphQLSchema } from "graphql";
+import { GraphQLError, GraphQLObjectType, GraphQLSchema } from "graphql";
 import { userGQLQuery } from "./modules/auth/graphql/user.query.gql";
 import { postGQLQuery } from "./modules/post/graphql/post.query.gql";
 import { commentGQLQuery } from "./modules/comment/graphql/comment.gql.query";
@@ -73,7 +73,23 @@ export function bootstrap() {
     query,
     mutation,
   });
-  app.all("/graphql", createHandler({ schema }));
+  app.all(
+    "/graphql",
+    createHandler({
+      context: (req) => {
+        const headers = req.headers;
+        return { headers };
+      },
+      schema,
+      formatError: (error) => {
+        return {
+          message: error.message,
+          success: false,
+          statusCode: error.cause || 500,
+        } as unknown as GraphQLError;
+      },
+    }),
+  );
 
   app.use("/auth", authRouter);
   app.use("/post", postRouter);

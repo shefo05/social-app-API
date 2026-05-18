@@ -7,6 +7,8 @@ import {
 import postService from "../post.service";
 import { PostGQLType } from "./post.type.gql";
 import { Types } from "mongoose";
+import { isAuthGQL, isvalidGQL } from "../../../middleware";
+import { createPostSchema, updatePostSchema } from "../post.validation";
 
 export const postMutationGql = {
   addPost: {
@@ -14,13 +16,20 @@ export const postMutationGql = {
     args: {
       content: { type: GraphQLString },
       attachments: { type: new GraphQLList(GraphQLString) },
-      userId: { type: GraphQLString },
     },
     resolve: async (
       _: any,
-      args: { content: string; attachments: string[]; userId: string },
+      args: { content: string; attachments: string[] },
+      context: any,
     ) => {
-      return await postService.create(args, new Types.ObjectId(args.userId));
+      isAuthGQL(context);
+      // console.log(context);
+      await isvalidGQL(createPostSchema, args);
+
+      return await postService.create(
+        args,
+        new Types.ObjectId(context.payload.sub),
+      );
     },
   },
 
@@ -29,7 +38,6 @@ export const postMutationGql = {
     args: {
       content: { type: GraphQLString },
       attachments: { type: new GraphQLList(GraphQLString) },
-      userId: { type: new GraphQLNonNull(GraphQLString) },
       postId: { type: new GraphQLNonNull(GraphQLString) },
     },
     resolve: async (
@@ -37,13 +45,17 @@ export const postMutationGql = {
       args: {
         content: string;
         attachments: string[];
-        userId: string;
         postId: string;
       },
+      context: any,
     ) => {
+      isAuthGQL(context);
+      // console.log(context);
+      await isvalidGQL(updatePostSchema, args);
+
       return await postService.update(
         new Types.ObjectId(args.postId),
-        new Types.ObjectId(args.userId),
+        new Types.ObjectId(context.payload.sub),
         args,
       );
     },
@@ -52,12 +64,13 @@ export const postMutationGql = {
     type: GraphQLBoolean,
     args: {
       postId: { type: new GraphQLNonNull(GraphQLString) },
-      userId: { type: new GraphQLNonNull(GraphQLString) },
     },
-    resolve: async (_: any, args: { postId: string; userId: string }) => {
+    resolve: async (_: any, args: { postId: string },context:any) => {
+      isAuthGQL(context);
+
       const deletedCount = await postService.delete(
         new Types.ObjectId(args.postId),
-        new Types.ObjectId(args.userId),
+        new Types.ObjectId(context.payload.sub),
       );
       return !!deletedCount;
     },

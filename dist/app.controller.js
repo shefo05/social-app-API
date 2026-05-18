@@ -61,7 +61,20 @@ function bootstrap() {
         query,
         mutation,
     });
-    app.all("/graphql", (0, express_2.createHandler)({ schema }));
+    app.all("/graphql", (0, express_2.createHandler)({
+        context: (req) => {
+            const headers = req.headers;
+            return { headers };
+        },
+        schema,
+        formatError: (error) => {
+            return {
+                message: error.message,
+                success: false,
+                statusCode: error.cause || 500,
+            };
+        },
+    }));
     app.use("/auth", modules_1.authRouter);
     app.use("/post", modules_1.postRouter);
     app.use("/comment", modules_1.commentRouter);
