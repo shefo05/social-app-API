@@ -1,0 +1,1384 @@
+{
+  "info": {
+    "_postman_id": "7d7e1d75-4b7f-4fcc-a325-fa325ab154e5",
+    "name": "Social App API",
+    "description": "REST + GraphQL API for the social_app Express backend, deployed at {{base_url}} (Render free tier).\n\nQuick start:\n1. Run Auth > 1. Signup\n2. Check the inbox for the signup email address for the OTP, then run Auth > 2. Verify Account (OTP) with the real code\n3. Run Auth > 3. Login - this auto-saves the access token into {{token}}\n4. All other requests marked 'Requires auth' will now work automatically via the collection's {{token}} variable\n\nNote: free-tier cold start - the first request after 15 minutes of inactivity can take 30-50s to respond while Render spins the instance back up.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "1. Signup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/signup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "signup"
+              ]
+            },
+            "description": "Creates a pending signup and emails an OTP to the given address (sent from SEND_MAIL_USER via Gmail SMTP). The user is NOT written to the DB until /auth/verify-account succeeds. gender is optional: 0 = male, 1 = female. phoneNumber must match Egyptian format (01/+201/00201 + [0,1,2,5] + 8 digits). password needs 1 uppercase, 1 lowercase, 1 digit, 1 special char, 8+ length.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"demo.user@example.com\",\n  \"password\": \"Demo@1234\",\n  \"userName\": \"demoUser\",\n  \"phoneNumber\": \"01012345678\",\n  \"gender\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Verify Account (OTP)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/verify-account",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "verify-account"
+              ]
+            },
+            "description": "Check the inbox for demo.user@example.com for the real 6-digit OTP emailed by /auth/signup, then replace the otp value here before sending. On success the user is actually created in MongoDB.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"demo.user@example.com\",\n  \"otp\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Send OTP (resend / forgot password)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/send-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "send-otp"
+              ]
+            },
+            "description": "Re-sends an OTP for an existing pending signup, or (while authenticated) generates the OTP needed for /auth/reset-password. Fails with 400 if a still-valid OTP already exists (3 min TTL).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"demo.user@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Returns { accessToken, refreshToken } in data. FCM (push token) is an optional extra field. Running this request automatically saves accessToken into the {{token}} collection variable via its Tests script - run this before any authenticated request below.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"demo.user@example.com\",\n  \"password\": \"Demo@1234\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const jsonData = pm.response.json();",
+                  "if (pm.response.code === 200 && jsonData.data && jsonData.data.accessToken) {",
+                  "    pm.collectionVariables.set(\"token\", jsonData.data.accessToken);",
+                  "    console.log(\"Saved accessToken to {{token}}\");",
+                  "}",
+                  "pm.test(\"Login returned 200 with an accessToken\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(jsonData.data.accessToken).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/reset-password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
+            },
+            "description": "Requires auth (logged in as the account being reset). Call 'Send OTP' first while authenticated to get a fresh otp emailed, then submit it here with the new password.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"otp\": \"123456\",\n  \"newPassword\": \"NewDemo@1234\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/update",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "update"
+              ]
+            },
+            "description": "All fields optional: email, phoneNumber, userName. Only send the fields you want to change.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userName\": \"demoUserUpdated\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/logout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Requires auth. Clears the caller's FCM token from the cache set (204 No Content)."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Account",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth"
+              ]
+            },
+            "description": "Requires auth. Permanently deletes the authenticated user plus all their posts and comments (204 No Content). Destructive - use a throwaway test account."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/user/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "user"
+              ]
+            },
+            "description": "Requires auth. Returns the authenticated user plus their friend list."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Posts",
+      "item": [
+        {
+          "name": "Create Post",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/post",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "post"
+              ]
+            },
+            "description": "Requires auth. At least one of content or attachments must be non-empty. attachments is an array of file keys/URLs (uploaded separately - this app does not expose a direct multipart upload route in these listed endpoints; attachments are S3 keys).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"This is my first post via Postman!\",\n  \"attachments\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Reaction to Post",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/post/add-reaction",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "post",
+                "add-reaction"
+              ]
+            },
+            "description": "Requires auth. id = a real post's Mongo ObjectId (24 hex chars) - copy one from 'Create Post' or 'Get Feed' response first. reaction is numeric: 0=like, 1=love, 2=haha, 3=wow, 4=sad, 5=angry. Sending the same reaction again removes it; sending a different one updates it.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"REPLACE_WITH_POST_ID\",\n  \"reaction\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Feed",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/post/feed?page=1&limit=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "post",
+                "feed"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Requires auth. Paginated feed of the user's own + friends' posts."
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Posts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/post/me?page=1&limit=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "post",
+                "me"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Requires auth. Paginated list of only the authenticated user's own posts."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Post by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{base_url}}/post/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "post",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "REPLACE_WITH_POST_ID"
+                }
+              ]
+            },
+            "description": "Public - no auth required."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Post",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/post/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "post",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "REPLACE_WITH_POST_ID"
+                }
+              ]
+            },
+            "description": "Requires auth, and you must be the post's owner.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Updated post content\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Post",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/post/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "post",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "REPLACE_WITH_POST_ID"
+                }
+              ]
+            },
+            "description": "Requires auth, and you must be the post's owner."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Comments",
+      "item": [
+        {
+          "name": "Create Comment on Post",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/post/:postId/comment",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "post",
+                ":postId",
+                "comment"
+              ],
+              "variable": [
+                {
+                  "key": "postId",
+                  "value": "REPLACE_WITH_POST_ID"
+                }
+              ]
+            },
+            "description": "Requires auth. Mounted under /post/:postId/comment - this is the correct path for creating a top-level comment (do not POST directly to /comment for creation).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Nice post!\",\n  \"mentions\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reply to Comment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/post/:postId/comment/:parentId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "post",
+                ":postId",
+                "comment",
+                ":parentId"
+              ],
+              "variable": [
+                {
+                  "key": "postId",
+                  "value": "REPLACE_WITH_POST_ID"
+                },
+                {
+                  "key": "parentId",
+                  "value": "REPLACE_WITH_PARENT_COMMENT_ID"
+                }
+              ]
+            },
+            "description": "Requires auth. Same as creating a comment, but nested under an existing comment's id as a reply.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Replying to this comment\",\n  \"mentions\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Reaction to Comment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/comment/add-reaction",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "comment",
+                "add-reaction"
+              ]
+            },
+            "description": "Requires auth. Same reaction semantics as posts (0=like ... 5=angry).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"REPLACE_WITH_COMMENT_ID\",\n  \"reaction\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Comments for Post",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{base_url}}/comment/:postId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "comment",
+                ":postId"
+              ],
+              "variable": [
+                {
+                  "key": "postId",
+                  "value": "REPLACE_WITH_POST_ID"
+                }
+              ]
+            },
+            "description": "Public. Returns top-level comments for a post. Append /:parentId (e.g. /comment/{{postId}}/{{parentId}}) to fetch replies to a specific comment instead."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Comment",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/comment/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "comment",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "REPLACE_WITH_COMMENT_ID"
+                }
+              ]
+            },
+            "description": "Requires auth, and you must be the comment's owner.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Updated comment text\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Comment",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/comment/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "comment",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "REPLACE_WITH_COMMENT_ID"
+                }
+              ]
+            },
+            "description": "Requires auth, and you must be the comment's owner."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Requests",
+      "item": [
+        {
+          "name": "Get Requests Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/request/dashboard?limit=5",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "request",
+                "dashboard"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "Requires auth. limit is optional, 1-50, defaults to 5."
+          },
+          "response": []
+        },
+        {
+          "name": "Send Friend Request",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/request/:receiverId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "request",
+                ":receiverId"
+              ],
+              "variable": [
+                {
+                  "key": "receiverId",
+                  "value": "REPLACE_WITH_USER_ID"
+                }
+              ]
+            },
+            "description": "Requires auth. receiverId = target user's Mongo ObjectId. Returns 204 on success."
+          },
+          "response": []
+        },
+        {
+          "name": "Accept Friend Request",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/request/accept/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "request",
+                "accept",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "REPLACE_WITH_REQUEST_ID"
+                }
+              ]
+            },
+            "description": "Requires auth. id = the friend request's id. Returns 204 on success."
+          },
+          "response": []
+        },
+        {
+          "name": "Decline Friend Request",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/request/decline/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "request",
+                "decline",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "REPLACE_WITH_REQUEST_ID"
+                }
+              ]
+            },
+            "description": "Requires auth. id = the friend request's id. Returns 204 on success."
+          },
+          "response": []
+        },
+        {
+          "name": "Remove Friend",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/request/remove/:friendId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "request",
+                "remove",
+                ":friendId"
+              ],
+              "variable": [
+                {
+                  "key": "friendId",
+                  "value": "REPLACE_WITH_FRIEND_USER_ID"
+                }
+              ]
+            },
+            "description": "Requires auth. friendId = the friend's user id. Returns 204 on success."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "GraphQL",
+      "item": [
+        {
+          "name": "Query: Get User (demo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{base_url}}/graphql",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "graphql"
+              ]
+            },
+            "description": "No auth required, no arguments accepted - this resolver is currently hardcoded to a fixed demo ObjectId in the source (src/modules/auth/graphql/user.query.gql.ts), so it will return null unless that exact document exists in your DB. Kept here for completeness / as a template for building a real by-id query.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"query {\\n  user {\\n    _id\\n    userName\\n    email\\n    phoneNumber\\n    role\\n    gender\\n    profilePic\\n  }\\n}\",\n  \"variables\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Query: Get Post (demo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{base_url}}/graphql",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "graphql"
+              ]
+            },
+            "description": "No auth required, no arguments accepted - hardcoded to a fixed demo ObjectId in src/modules/post/graphql/post.query.gql.ts, will return null unless that exact document exists.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"query {\\n  post {\\n    _id\\n    content\\n    attachments\\n  }\\n}\",\n  \"variables\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Query: Get Comment (demo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{base_url}}/graphql",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "graphql"
+              ]
+            },
+            "description": "No auth required, no arguments accepted - hardcoded to a fixed demo ObjectId in src/modules/comment/graphql/comment.gql.query.ts, will return null unless that exact document exists.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"query {\\n  comment {\\n    _id\\n    content\\n  }\\n}\",\n  \"variables\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mutation: Add Post",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/graphql",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "graphql"
+              ]
+            },
+            "description": "Requires auth (Authorization header is read manually from GraphQL context, same {{token}} bearer works). Set the query variables above in the Postman GraphQL body if you change them.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"mutation AddPost($content: String, $attachments: [String]) {\\n  addPost(content: $content, attachments: $attachments) {\\n    _id\\n    content\\n    attachments\\n  }\\n}\",\n  \"variables\": {\n    \"content\": \"Post created via GraphQL from Postman\",\n    \"attachments\": []\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mutation: Update Post",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/graphql",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "graphql"
+              ]
+            },
+            "description": "Requires auth, and you must be the post's owner. postId is required.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"mutation UpdatePost($postId: String!, $content: String, $attachments: [String]) {\\n  updatePost(postId: $postId, content: $content, attachments: $attachments) {\\n    _id\\n    content\\n    attachments\\n  }\\n}\",\n  \"variables\": {\n    \"postId\": \"REPLACE_WITH_POST_ID\",\n    \"content\": \"Updated via GraphQL\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mutation: Delete Post",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/graphql",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "graphql"
+              ]
+            },
+            "description": "Requires auth, and you must be the post's owner. Returns a Boolean.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"mutation DeletePost($postId: String!) {\\n  deletePost(postId: $postId)\\n}\",\n  \"variables\": {\n    \"postId\": \"REPLACE_WITH_POST_ID\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Misc",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "No auth. Returns { status: 'ok', uptime }. Use this to check if the free-tier instance is awake (cold start can take ~30-50s on Render's free plan after 15 min idle)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Uploaded File",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{base_url}}/uploads/:key",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "uploads",
+                ":key"
+              ],
+              "variable": [
+                {
+                  "key": "key",
+                  "value": "REPLACE_WITH_S3_FILE_KEY"
+                }
+              ]
+            },
+            "description": "No auth. Streams a file from S3 by its stored key (e.g. an attachment key returned on a post/comment). Path accepts nested keys with slashes."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://social-app-5f5n.onrender.com",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
