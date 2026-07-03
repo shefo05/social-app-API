@@ -9,7 +9,12 @@ export const isAuthenticated = async (
 ) => {
   const { authorization } = req.headers;
   if (!authorization) throw new BadRequestException("send a valid token");
-  const payload = verifyToken(authorization);
+  const token = (
+    authorization.startsWith("Bearer ")
+      ? authorization.split(" ")[1]
+      : authorization
+  ) as string;
+  const payload = verifyToken(token);
 
   const userExist = await authService.checkUserExist({ _id: payload.sub });
   if (!userExist) throw new NotFoundException("user not found");

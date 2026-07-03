@@ -4,7 +4,9 @@ import {
   commentRouter,
   postRouter,
   requestRouter,
+  userRouter,
 } from "./modules";
+import cors from 'cors'
 import { BadRequestException, NotFoundException } from "./common";
 import { connectDB } from "./DB/connection";
 import { redisConnect } from "./DB/redis.connect";
@@ -17,12 +19,17 @@ import { userGQLQuery } from "./modules/auth/graphql/user.query.gql";
 import { postGQLQuery } from "./modules/post/graphql/post.query.gql";
 import { commentGQLQuery } from "./modules/comment/graphql/comment.gql.query";
 import { postMutationGql } from "./modules/post/graphql/post.mutation.gql";
+import { RealtimeGateway } from "./common/realtime-gateway/realtime.gateway";
 
 const pipelinePromise = promisify(pipeline);
 
 export function bootstrap() {
   const app = express();
-  const port = 3000;
+  const port = process.env.PORT || 3000;
+
+  app.get("/health", (req: Request, res: Response) => {
+    res.status(200).json({ status: "ok", uptime: process.uptime() });
+  });
 
   app.get(
     "/uploads/*paths",
@@ -44,6 +51,7 @@ export function bootstrap() {
   redisConnect();
 
   app.use(express.json());
+  app.use(cors({ origin: "*" }));
 
   const query = new GraphQLObjectType({
     name: "RootQuery",
@@ -92,6 +100,7 @@ export function bootstrap() {
   );
 
   app.use("/auth", authRouter);
+  app.use('/user',userRouter)
   app.use("/post", postRouter);
   app.use("/comment", commentRouter);
   app.use("/request", requestRouter);
@@ -105,9 +114,13 @@ export function bootstrap() {
       details: err instanceof BadRequestException ? err.details : undefined,
     });
   });
-  app.listen(port, () => {
+
+  const server = app.listen(port, () => {
     console.log("app is running on port", port);
   });
+
+  const realtimeGateway = new RealtimeGateway(server);
+  const io = realtimeGateway.io;
 }
 
 // import { createHandler } from "graphql-http/lib/use/express";

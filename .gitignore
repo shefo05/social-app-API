@@ -1,2 +1,9 @@
 *.env
+!.env.example
 src/config/*.json
+
+node_modules/
+dist/
+
+npm-debug.log*
+.DS_Store

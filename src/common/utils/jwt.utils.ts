@@ -1,6 +1,7 @@
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { randomUUID } from "crypto";
 import { StringValue } from "ms";
+import { JWT_ACCESS_SECRET, JWT_REFRESH_SECRET } from "../../config";
 const generateToken = (
   payload: Record<string, unknown>,
   secret: string,
@@ -18,25 +19,14 @@ const generateToken = (
 };
 
 export function generateTokens(payload: JwtPayload) {
-  const accessToken = generateToken(
-    payload,
-    "vhfdsfgkfsutgrufdkcxzvjkvuirlficubzliuxvaspi",
-    3600,
-  );
+  const accessToken = generateToken(payload, JWT_ACCESS_SECRET, 3600);
 
-  const refreshToken = generateToken(
-    payload,
-    "kkkkkfkfkfkfkfghfsfdgfysdgyuzfcvytxcvxcuczcftvffuygastjkg",
-    "1y",
-  );
+  const refreshToken = generateToken(payload, JWT_REFRESH_SECRET, "1y");
 
   return { accessToken, refreshToken };
 }
 
-export function verifyToken(
-  token: string,
-  secret = "vhfdsfgkfsutgrufdkcxzvjkvuirlficubzliuxvaspi",
-) {
+export function verifyToken(token: string, secret = JWT_ACCESS_SECRET) {
   const payload = jwt.verify(token, secret);
   return payload;
 }

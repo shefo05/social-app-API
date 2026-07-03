@@ -10,7 +10,7 @@ import { isAuthenticated, isvalid } from "../../middleware";
 import { default as commentRouter } from "../comment/comment.controller";
 import { addReaction, BadRequestException } from "../../common";
 import { postRepo } from "../../DB/models/post/post.repository";
-import { firebasePushNotificationProvider } from "../../common/notification/firebase/init";
+// import { firebasePushNotificationProvider } from "../../common/notification/firebase/init";
 import { redisCacheProvider } from "../../common/cache/redis/init";
 import { AddReactionSchema } from "../../common/dto";
 
@@ -41,7 +41,7 @@ router.post(
       req.body,
       req.user._id,
       postRepo,
-      firebasePushNotificationProvider,
+      // firebasePushNotificationProvider,
       redisCacheProvider,
     );
     // await postService.addReaction(

@@ -9,8 +9,11 @@ export class RedisCacheProvider implements ICacheProvider {
   private _client: RedisClientType;
   constructor(config: RedisConfig) {
     this._client = createClient(config);
+    this._client.on("error", (err) => {
+      console.log("redis cache client error:", err.message);
+    });
     this._client.connect().catch((err) => {
-      console.log(err);
+      console.log("fail to connect to redis cache:", err.message);
     });
   }
   async getAllSet(key: string): Promise<string[] | null> {

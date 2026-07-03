@@ -31,6 +31,7 @@ import {
   CommentRepository,
 } from "../../DB/models/comment/comment.repository";
 
+
 class AuthService {
   constructor(
     private _userRepo: UserRepository,
@@ -161,7 +162,6 @@ class AuthService {
     const hash = userExist?.password ?? DUMMY_HASH;
     const matchPassword = await compare(password, hash);
 
-    
     if (!matchPassword || !userExist)
       throw new BadRequestException("invalid credentials");
 
@@ -204,6 +204,8 @@ class AuthService {
 
     return await this._userRepo.deleteOne({ _id: id });
   }
+
+ 
 }
 
 export default new AuthService(
