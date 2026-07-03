@@ -9,9 +9,9 @@ services:
     envVars:
       - key: DB_URL
         sync: false
-      - key: SEND_MAIL_USER
+      - key: RESEND_API_KEY
         sync: false
-      - key: SEND_MAIL_PASS
+      - key: RESEND_FROM_EMAIL
         sync: false
       - key: REDIS_URL
         sync: false
