@@ -20,6 +20,12 @@ const schema = new Schema<IUser>(
         if (this.provider == SYS_PROVIDER.google) return false;
         return true;
       },
+      // Excluded from every query result by default (find/findOne/
+      // findOneAndUpdate/populate all respect this) - fixes every read
+      // path in one place instead of patching each call site
+      // individually. login() is the one legitimate place that still
+      // needs it and opts back in explicitly with "+password".
+      select: false,
     },
     role: {
       type: Number,

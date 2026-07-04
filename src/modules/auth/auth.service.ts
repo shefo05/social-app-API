@@ -150,7 +150,9 @@ class AuthService {
     const { email, password } = loginDTO;
     const DUMMY_HASH = "$2b$10$abcdefghijklmnopqrstuv1234567890abcdef";
 
-    const userExist = await this._userRepo.getOne({ email });
+    // password now has select: false on the schema - opt back in here,
+    // the one legitimate place that needs the hash for bcrypt.compare().
+    const userExist = await this._userRepo.getOne({ email }, "+password");
 
     const hash = userExist?.password ?? DUMMY_HASH;
     const matchPassword = await compare(password, hash);
