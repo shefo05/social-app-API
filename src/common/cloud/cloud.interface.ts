@@ -1,7 +1,10 @@
+export interface UploadResult {
+  url: string;
+  publicId: string;
+}
+
 export interface ICloudProvider {
-  uploadFile(file: Express.Multer.File, path: string): Promise<string>;
+  uploadFile(file: Express.Multer.File, folder: string): Promise<UploadResult>;
 
-  deleteFile(key: string): Promise<boolean | undefined>;
-
-  getFile(key: string): Promise<NodeJS.ReadableStream | undefined>;
+  deleteFile(publicId: string): Promise<void>;
 }

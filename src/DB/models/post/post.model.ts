@@ -10,6 +10,7 @@ const schema = new Schema<IPost>(
     },
     content: String,
     attachments: [String],
+    attachmentPublicIds: [String],
     reactionsCount: {
       type: Number,
       default: 0,

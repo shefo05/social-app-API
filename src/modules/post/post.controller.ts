@@ -6,9 +6,9 @@ import {
   listPostsQuerySchema,
   updatePostSchema,
 } from "./post.validation";
-import { isAuthenticated, isvalid } from "../../middleware";
+import { isAuthenticated, isvalid, uploadAttachments } from "../../middleware";
 import { default as commentRouter } from "../comment/comment.controller";
-import { addReaction, BadRequestException } from "../../common";
+import { addReaction, BadRequestException, multerUploadFile } from "../../common";
 import { postRepo } from "../../DB/models/post/post.repository";
 // import { firebasePushNotificationProvider } from "../../common/notification/firebase/init";
 import { redisCacheProvider } from "../../common/cache/redis/init";
@@ -20,10 +20,16 @@ router.use("/:postId/comment", commentRouter);
 
 router.post(
   "/",
+  multerUploadFile().array("attachments", 4),
+  uploadAttachments("posts"),
   isvalid(createPostSchema),
   isAuthenticated,
   async (req: Request, res: Response, next: NextFunction) => {
-    const createdPost = await postService.create(req.body, req.user._id);
+    const createdPost = await postService.create(
+      req.body,
+      req.user._id,
+      req.uploadedPublicIds,
+    );
     return res.status(201).json({
       message: "post created successfully",
       success: true,

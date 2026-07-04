@@ -9,4 +9,6 @@ export interface IUser {
   gender?: SYS_GENDER | undefined;
   provider: SYS_PROVIDER;
   profilePic: string;
+  /** Cloudinary public_id for profilePic - for future deletion. */
+  profilePicPublicId?: string;
 }

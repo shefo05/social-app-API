@@ -36,6 +36,7 @@ const schema = new Schema<IUser>(
       default: SYS_PROVIDER.system,
     },
     profilePic: String,
+    profilePicPublicId: String,
   },
   { timestamps: true },
 );

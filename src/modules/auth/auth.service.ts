@@ -180,8 +180,15 @@ class AuthService {
     await this._cacheProvider.rmSet(`${userId.toString()}:FCM`, fcm);
   }
 
-  async update(id: Types.ObjectId, updateUserDTO: UpdateUserDTO) {
-    return await this._userRepo.updateOne({ _id: id }, updateUserDTO);
+  async update(
+    id: Types.ObjectId,
+    updateUserDTO: UpdateUserDTO,
+    avatarPublicId?: string,
+  ) {
+    const update = avatarPublicId
+      ? { ...updateUserDTO, profilePicPublicId: avatarPublicId }
+      : updateUserDTO;
+    return await this._userRepo.updateOne({ _id: id }, update);
   }
 
   async delete(id: Types.ObjectId) {

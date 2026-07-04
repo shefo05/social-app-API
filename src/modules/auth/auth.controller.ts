@@ -5,7 +5,8 @@ import {
   Router,
 } from "express";
 import authService from "./auth.service";
-import { isAuthenticated, isvalid } from "../../middleware";
+import { isAuthenticated, isvalid, uploadAvatar } from "../../middleware";
+import { multerUploadFile } from "../../common";
 import {
   loginSchema,
   resetPasswordSchema,
@@ -81,10 +82,16 @@ router.post(
 
 router.patch(
   "/update",
+  multerUploadFile().single("avatar"),
+  uploadAvatar("avatars"),
   isvalid(updateUserSchema),
   isAuthenticated,
   async (req: Request, res: Response, next: NextFunction) => {
-    const updatedUser = await authService.update(req.user._id, req.body);
+    const updatedUser = await authService.update(
+      req.user._id,
+      req.body,
+      req.uploadedAvatarPublicId,
+    );
     return res.status(200).json({
       message: "password updated successfully",
       success: true,

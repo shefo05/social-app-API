@@ -31,4 +31,8 @@ export const updateUserSchema = z.object({
   email: GF.email.optional(),
   phoneNumber: GF.phoneNumber.optional(),
   userName: GF.userName.optional(),
+  // Set by the uploadAvatar() middleware before this schema runs, not a
+  // client-supplied field - without it here, zod strips it silently
+  // since z.object() drops unrecognized keys by default.
+  profilePic: z.string().optional(),
 });

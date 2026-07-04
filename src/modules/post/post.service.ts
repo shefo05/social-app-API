@@ -52,8 +52,16 @@ class PostSevice {
     };
   }
 
-  async create(createPostDTO: CreatePostDTO, userId: Types.ObjectId) {
-    const createdPost = await this._postRepo.create({ ...createPostDTO, userId });
+  async create(
+    createPostDTO: CreatePostDTO,
+    userId: Types.ObjectId,
+    attachmentPublicIds?: string[],
+  ) {
+    const createdPost = await this._postRepo.create({
+      ...createPostDTO,
+      userId,
+      ...(attachmentPublicIds ? { attachmentPublicIds } : {}),
+    });
     // Same reasoning as the feed/my-posts populate: without this, your
     // own just-created post shows the unpopulated fallback until the
     // feed is refetched, inconsistent with every other post in the list.
