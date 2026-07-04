@@ -33,6 +33,11 @@ class PostSevice {
         sort: { createdAt: -1 },
         skip,
         limit: query.limit + 1,
+        // Match getOne()'s populate so feed/my-posts list items carry
+        // author name/avatar too - explicit field allowlist since User
+        // has no `select: false` on password, so an unqualified populate
+        // would otherwise leak the password hash into the response.
+        populate: { path: "userId", select: "userName profilePic" },
       },
     );
 
