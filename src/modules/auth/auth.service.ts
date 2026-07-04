@@ -7,7 +7,7 @@ import {
   generateOTP,
   hash,
   IUser,
-  resendProvider,
+  sendgridProvider,
   NotFoundException,
 } from "../../common";
 import { generateTokens } from "../../common/utils/jwt.utils";
@@ -212,6 +212,6 @@ export default new AuthService(
   userRepo,
   postRepo,
   commentRepo,
-  resendProvider,
+  sendgridProvider,
   redisCacheProvider,
 );

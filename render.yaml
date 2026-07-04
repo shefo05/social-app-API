@@ -9,9 +9,9 @@ services:
     envVars:
       - key: DB_URL
         sync: false
-      - key: RESEND_API_KEY
+      - key: SENDGRID_API_KEY
         sync: false
-      - key: RESEND_FROM_EMAIL
+      - key: SENDGRID_FROM_EMAIL
         sync: false
       - key: REDIS_URL
         sync: false
