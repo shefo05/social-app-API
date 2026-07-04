@@ -6,6 +6,7 @@ import { PostRepository } from "../../DB/models/post/post.repository";
 import { CommentRepository } from "../../DB/models/comment/comment.repository";
 // import { INotificationProvider } from "../notification/notification.interface";
 import { ICacheProvider } from "../cache/cache.interface";
+import { getRealtimeGateway } from "../realtime-gateway/realtime.gateway";
 
 function toModel(collectionName: string) {
   switch (collectionName) {
@@ -38,6 +39,32 @@ export const addReaction = async (
 
   const modelId = new Types.ObjectId(addReactionDTO.id);
 
+  // Post reactions broadcast to their own post:{id} room; comment
+  // reactions still broadcast to the parent post's room, since comments
+  // are only ever viewed in the context of a post page - there's no
+  // separate "viewing a comment" room.
+  const targetType: "post" | "comment" =
+    collectionName === "posts" ? "post" : "comment";
+  const postId =
+    targetType === "post"
+      ? modelId.toString()
+      : (docExist as unknown as { postId: Types.ObjectId }).postId.toString();
+
+  const emitReaction = (
+    reactionsCount: number,
+    action: "added" | "removed" | "changed",
+  ) => {
+    getRealtimeGateway()?.emitToPost(postId, "reaction:new", {
+      targetType,
+      targetId: modelId.toString(),
+      postId,
+      reactionsCount,
+      userId: userId.toString(),
+      reaction: addReactionDTO.reaction,
+      action,
+    });
+  };
+
   const userReaction = await userReactionRepo.getOne({
     onModel: toModel(collectionName),
     refId: modelId,
@@ -51,27 +78,26 @@ export const addReaction = async (
       userId,
       reaction: addReactionDTO.reaction,
     });
-    await repo.updateOne(
+    const updated = await repo.updateOne(
       { _id: addReactionDTO.id },
       { $inc: { reactionsCount: 1 } },
     );
-    // const fcmTokens = await cacheProvider.getAllSet(
-    //   `${docExist.userId.toString()}:FCM`,
-    // );
-    // if (fcmTokens) {
-    //   await pushNotificationProvider.sendAll(fcmTokens, {
-    //     title: `your ${repo.model.modelName} you shared`,
-    //     body: `${userId.toString()} has react to your ${repo.model.modelName} by ${addReactionDTO.reaction}`,
-    //   });
-    // }
+    emitReaction(
+      updated ? Number(updated.reactionsCount) : Number(docExist.reactionsCount) + 1,
+      "added",
+    );
     return;
   }
   //remove reaction
   if (userReaction.reaction == addReactionDTO.reaction) {
     await userReactionRepo.deleteOne({ _id: userReaction._id });
-    repo.updateOne(
+    const updated = await repo.updateOne(
       { _id: addReactionDTO.id },
       { $inc: { reactionsCount: -1 } },
+    );
+    emitReaction(
+      updated ? Number(updated.reactionsCount) : Number(docExist.reactionsCount) - 1,
+      "removed",
     );
     return;
   }
@@ -80,15 +106,7 @@ export const addReaction = async (
     { _id: userReaction._id },
     { reaction: addReactionDTO.reaction },
   );
-  // const fcmTokens = await cacheProvider.getAllSet(
-  //   `${docExist.userId.toString()}:FCM`,
-  // );
-  // if (fcmTokens) {
-  //   await pushNotificationProvider.sendAll(fcmTokens, {
-  //     title: `your ${repo.model.modelName} you shared`,
-  //     body: `${userId.toString()} has react to your ${repo.model.modelName} by ${addReactionDTO.reaction}`,
-  //   });
-  // }
+  emitReaction(Number(docExist.reactionsCount), "changed");
 
   return;
 };

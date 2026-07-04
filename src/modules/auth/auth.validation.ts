@@ -27,6 +27,19 @@ export const resetPasswordSchema = z.object({
   otp: GF.otp,
   newPassword: GF.password,
 });
+
+// Separate from sendOtpSchema even though the shape is identical today -
+// forgot-password is semantically distinct (requires an existing real
+// user, not a pending signup) and should be free to evolve independently.
+export const forgotPasswordSchema = z.object({
+  email: GF.email,
+});
+
+export const resetPasswordConfirmSchema = z.object({
+  email: GF.email,
+  otp: GF.otp,
+  newPassword: GF.password,
+});
 export const updateUserSchema = z.object({
   email: GF.email.optional(),
   phoneNumber: GF.phoneNumber.optional(),

@@ -8,7 +8,9 @@ import authService from "./auth.service";
 import { isAuthenticated, isvalid, uploadAvatar } from "../../middleware";
 import { multerUploadFile } from "../../common";
 import {
+  forgotPasswordSchema,
   loginSchema,
+  resetPasswordConfirmSchema,
   resetPasswordSchema,
   sendOtpSchema,
   signupSchema,
@@ -60,6 +62,32 @@ router.patch(
   isAuthenticated,
   async (req: Request, res: Response, next: NextFunction) => {
     await authService.resetPassword(req.body, req.user);
+    return res.status(200).json({
+      message: "password updated successfully",
+      success: true,
+    });
+  },
+);
+
+// Unauthenticated recovery path - resetPassword above requires a valid
+// session, which a locked-out user doesn't have by definition.
+router.post(
+  "/forgot-password",
+  isvalid(forgotPasswordSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    await authService.forgotPassword(req.body);
+    return res.status(200).json({
+      message: "OTP sent successfully",
+      success: true,
+    });
+  },
+);
+
+router.post(
+  "/reset-password-confirm",
+  isvalid(resetPasswordConfirmSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    await authService.resetPasswordConfirm(req.body);
     return res.status(200).json({
       message: "password updated successfully",
       success: true,

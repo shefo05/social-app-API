@@ -1,6 +1,8 @@
 import z from "zod";
 import {
+  forgotPasswordSchema,
   loginSchema,
+  resetPasswordConfirmSchema,
   resetPasswordSchema,
   sendOtpSchema,
   signupSchema,
@@ -42,3 +44,6 @@ export type SendOtpDTO = z.infer<typeof sendOtpSchema>;
 export type ResetPasswordDTO = z.infer<typeof resetPasswordSchema>;
 
 export type UpdateUserDTO = z.infer<typeof updateUserSchema>;
+
+export type ForgotPasswordDTO = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordConfirmDTO = z.infer<typeof resetPasswordConfirmSchema>;

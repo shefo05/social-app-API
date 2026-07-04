@@ -13,13 +13,16 @@ import {
   userFriendRepo,
   UserFriendRepository,
 } from "../../DB/models/user-friend/user-friend.repository";
+import { userRepo, UserRepository } from "../../DB/models/user/user.repository";
 import { RequestDashboardQueryDTO } from "./request.dto";
+import { getRealtimeGateway } from "../../common/realtime-gateway/realtime.gateway";
 
 
 class RequestService {
   constructor(
     private readonly _requestRepo: RequestRepository,
     private readonly _userFriendRepo: UserFriendRepository,
+    private readonly _userRepo: UserRepository,
   ) {}
 
   async sendRequest(sender: mongoose.Types.ObjectId, receiverId: string) {
@@ -46,10 +49,37 @@ class RequestService {
     });
     if (requestExist) throw new ConflictException("request already exists");
 
-    return await this._requestRepo.create({
+    const createdRequest = await this._requestRepo.create({
       sender,
       receiver,
     });
+
+    // Unlike REST's getDashboard() (which returns bare sender/receiver
+    // ids today - no populate there), populate the sender specifically
+    // for this event: an unpopulated id is close to useless for a live
+    // notification, which is the entire point of this event existing.
+    const senderUser = await this._userRepo.getOne(
+      { _id: sender },
+      "userName profilePic",
+    );
+    // Cast: same AbstractRepository<T>.create() generic-return-type gap
+    // as post/comment create() - IRequest doesn't model timestamps
+    // either, so ._id/.createdAt need a cast regardless.
+    const createdRequestDoc = createdRequest as any;
+    getRealtimeGateway()?.emitToUser(receiver.toString(), "request:new", {
+      _id: createdRequestDoc._id.toString(),
+      sender: senderUser
+        ? {
+            _id: senderUser._id.toString(),
+            userName: senderUser.userName,
+            profilePic: senderUser.profilePic,
+          }
+        : { _id: sender.toString() },
+      receiver: receiver.toString(),
+      createdAt: createdRequestDoc.createdAt,
+    });
+
+    return createdRequest;
   }
 
   async acceptRequest(userId: mongoose.Types.ObjectId, id: string) {
@@ -72,6 +102,25 @@ class RequestService {
       user: userId,
       friend: requestExist.sender,
     });
+
+    const accepterUser = await this._userRepo.getOne(
+      { _id: userId },
+      "userName profilePic",
+    );
+    getRealtimeGateway()?.emitToUser(
+      requestExist.sender.toString(),
+      "request:accepted",
+      {
+        _id: reqId.toString(),
+        accepter: accepterUser
+          ? {
+              _id: accepterUser._id.toString(),
+              userName: accepterUser.userName,
+              profilePic: accepterUser.profilePic,
+            }
+          : { _id: userId.toString() },
+      },
+    );
   }
 
   async declineRequest(userId: mongoose.Types.ObjectId, id: string) {
@@ -161,4 +210,4 @@ class RequestService {
   }
 }
 
-export default new RequestService(requestRepo, userFriendRepo);
+export default new RequestService(requestRepo, userFriendRepo, userRepo);

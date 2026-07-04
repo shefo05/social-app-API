@@ -98,8 +98,7 @@ export function bootstrap() {
     console.log("app is running on port", port);
   });
 
-  const realtimeGateway = new RealtimeGateway(server);
-  const io = realtimeGateway.io;
+  new RealtimeGateway(server);
 }
 
 // import { createHandler } from "graphql-http/lib/use/express";

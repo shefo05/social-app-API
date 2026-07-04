@@ -11,6 +11,7 @@ import {
   commentRepo,
   CommentRepository,
 } from "../../DB/models/comment/comment.repository";
+import { getRealtimeGateway } from "../../common/realtime-gateway/realtime.gateway";
 
 export class CommentService {
   constructor(
@@ -67,10 +68,21 @@ export class CommentService {
     // Cast: AbstractRepository<T>.create()'s generic return type doesn't
     // collapse to a concrete Mongoose Document, so .populate()'s
     // overloads don't resolve - a TS inference gap, not a runtime issue.
-    return await (createdComment as any).populate({
+    const populatedComment = await (createdComment as any).populate({
       path: "userId",
       select: "userName profilePic",
     });
+
+    // Broadcast to everyone currently viewing this post - same populated
+    // shape as the REST create response, so the frontend can push it
+    // straight into state with no refetch.
+    getRealtimeGateway()?.emitToPost(
+      postId.toString(),
+      "comment:new",
+      populatedComment,
+    );
+
+    return populatedComment;
   }
 
   // async addReaction(addReactionDTO:AddR)

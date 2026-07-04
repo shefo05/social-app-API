@@ -14,7 +14,9 @@ import {
 import { generateTokens } from "../../common/utils/jwt.utils";
 import { userRepo, UserRepository } from "../../DB/models/user/user.repository";
 import {
+  ForgotPasswordDTO,
   LoginDTO,
+  ResetPasswordConfirmDTO,
   ResetPasswordDTO,
   SendOtpDTO,
   SignupDTO,
@@ -144,6 +146,52 @@ class AuthService {
 
     // await deleteFromCache(`${email}:otp`);
     await this._cacheProvider.delete(`${email}:otp`);
+  }
+
+  /**
+   * Unauthenticated recovery path for a locked-out user - resetPassword()
+   * above requires an already-valid session, which is exactly what
+   * someone who forgot their password doesn't have.
+   *
+   * Uses a distinct `${email}:reset-otp` cache key rather than reusing
+   * signup's `${email}:otp`. The two flows are mutually exclusive today
+   * (signup only sets its key for emails with no existing user; this
+   * only fires for emails that already have one), so reusing the key
+   * would happen to be safe - but "happens to be safe because two other
+   * methods' preconditions currently don't overlap" is exactly the kind
+   * of implicit coupling that breaks silently if either flow changes
+   * later. A separate key costs nothing and removes that dependency.
+   */
+  async forgotPassword(forgotPasswordDTO: ForgotPasswordDTO) {
+    const { email } = forgotPasswordDTO;
+    const userExist = await this._userRepo.getOne({ email });
+    if (!userExist) throw new NotFoundException("user not found");
+
+    const otpExist = await this._cacheProvider.get(`${email}:reset-otp`);
+    if (otpExist)
+      throw new BadRequestException(
+        `you already have a valid otp, wait ${OTP_TTL_SECONDS / 60} minutes`,
+      );
+
+    const otp = generateOTP();
+    await this._mailProvider.send(
+      email,
+      "Reset your password",
+      otpEmailTemplate({ otp, expiryMinutes: OTP_TTL_SECONDS / 60 }),
+    );
+    await this._cacheProvider.set(`${email}:reset-otp`, otp, OTP_TTL_SECONDS);
+  }
+
+  async resetPasswordConfirm(resetPasswordConfirmDTO: ResetPasswordConfirmDTO) {
+    const { email, otp, newPassword } = resetPasswordConfirmDTO;
+    const cachedOtp = await this._cacheProvider.get(`${email}:reset-otp`);
+
+    if (cachedOtp != otp) throw new BadRequestException("invalid OTP");
+
+    const password = await hash(newPassword);
+    await this._userRepo.updateOne({ email }, { password });
+
+    await this._cacheProvider.delete(`${email}:reset-otp`);
   }
 
   async login(loginDTO: LoginDTO) {
