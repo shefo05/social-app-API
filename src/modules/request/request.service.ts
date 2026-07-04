@@ -179,6 +179,14 @@ class RequestService {
     userId: mongoose.Types.ObjectId,
     query: RequestDashboardQueryDTO,
   ) {
+    // Same populate the socket request:new/request:accepted payloads
+    // already use - an unpopulated sender/receiver id is close to
+    // useless for a requests list UI, same reasoning as those events.
+    const populateParties = [
+      { path: "sender", select: "userName profilePic" },
+      { path: "receiver", select: "userName profilePic" },
+    ];
+
     const [incomingCount, outgoingCount, incomingRecent, outgoingRecent] =
       await Promise.all([
         this._requestRepo.model.countDocuments({ receiver: userId }),
@@ -189,6 +197,7 @@ class RequestService {
           {
             sort: { createdAt: -1 },
             limit: query.limit,
+            populate: populateParties,
           },
         ),
         this._requestRepo.getAll(
@@ -197,6 +206,7 @@ class RequestService {
           {
             sort: { createdAt: -1 },
             limit: query.limit,
+            populate: populateParties,
           },
         ),
       ]);
