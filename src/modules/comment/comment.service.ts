@@ -66,10 +66,18 @@ export class CommentService {
 
   // async addReaction(addReactionDTO:AddR)
   async getAll(params: any) {
-    const comments = await this._commentRepo.getAll({
-      postId: params.postId,
-      parentId: params.parentId,
-    });
+    // GET /comment/:postId (no parentId segment) is the frontend's only
+    // call today - it fetches the full flat list and builds the
+    // top-level/reply tree client-side by parentId. Filtering on
+    // `parentId: undefined` here matched only documents where that field
+    // is unset (i.e. top-level comments only, since replies always have
+    // it set), silently dropping every reply from the response even
+    // though it was created and counted. Only filter on parentId when
+    // the caller actually asked for a specific parent's replies.
+    const filter: QueryFilter<IComment> = { postId: params.postId };
+    if (params.parentId !== undefined) filter.parentId = params.parentId;
+
+    const comments = await this._commentRepo.getAll(filter);
     if (comments.length == 0) throw new NotFoundException("no comments exist");
     return comments;
   }
