@@ -7,6 +7,7 @@ import {
   generateOTP,
   hash,
   IUser,
+  otpEmailTemplate,
   sendgridProvider,
   NotFoundException,
 } from "../../common";
@@ -31,6 +32,8 @@ import {
   CommentRepository,
 } from "../../DB/models/comment/comment.repository";
 
+
+const OTP_TTL_SECONDS = 3 * 60;
 
 class AuthService {
   constructor(
@@ -58,17 +61,12 @@ class AuthService {
 
     await this._mailProvider.send(
       email,
-      "confirm email",
-      `<p>your OTP to verify account is ${otp}</p>`,
+      "Your verification code",
+      otpEmailTemplate({ otp, expiryMinutes: OTP_TTL_SECONDS / 60 }),
     );
-    // sendMail({
-    //   to: email,
-    //   subject: "confirm email",
-    //   html: `<p>your OTP to verify account is ${otp}</p>`,
-    // });
 
     // await setIntoCache(`${email}:otp`, otp, 3 * 60);
-    await this._cacheProvider.set(`${email}:otp`, otp, 3 * 60);
+    await this._cacheProvider.set(`${email}:otp`, otp, OTP_TTL_SECONDS);
 
     // await setIntoCache(email, JSON.stringify(signupDTO), 3 * 24 * 60 * 60);
     await this._cacheProvider.set(
@@ -116,21 +114,16 @@ class AuthService {
     const otpExist = await this._cacheProvider.get(`${email}:otp`);
     if (otpExist)
       throw new BadRequestException(
-        "you already have a valid otp, wait 3 minutes",
+        `you already have a valid otp, wait ${OTP_TTL_SECONDS / 60} minutes`,
       );
     const otp = generateOTP();
     await this._mailProvider.send(
       email,
-      "confirm email",
-      `<p>your OTP to verify account is ${otp}</p>`,
+      "Your verification code",
+      otpEmailTemplate({ otp, expiryMinutes: OTP_TTL_SECONDS / 60 }),
     );
-    // sendMail({
-    //   to: email,
-    //   subject: "send otp",
-    //   html: `<p>your otp is ${otp}</p>`,
-    // });
     // await setIntoCache(`${email}:otp`, otp, 3 * 60);
-    await this._cacheProvider.set(`${email}:otp`, otp, 3 * 60);
+    await this._cacheProvider.set(`${email}:otp`, otp, OTP_TTL_SECONDS);
   }
 
   async resetPassword(resetPasswordDTO: ResetPasswordDTO, user: IUser) {
