@@ -53,7 +53,15 @@ class PostSevice {
   }
 
   async create(createPostDTO: CreatePostDTO, userId: Types.ObjectId) {
-    return await this._postRepo.create({ ...createPostDTO, userId });
+    const createdPost = await this._postRepo.create({ ...createPostDTO, userId });
+    // Same reasoning as the feed/my-posts populate: without this, your
+    // own just-created post shows the unpopulated fallback until the
+    // feed is refetched, inconsistent with every other post in the list.
+    // Cast: see the identical note in comment.service.ts's create().
+    return await (createdPost as any).populate({
+      path: "userId",
+      select: "userName profilePic",
+    });
   }
 
   async getOne(id: mongoose.Types.ObjectId) {

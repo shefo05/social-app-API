@@ -61,7 +61,16 @@ export class CommentService {
     });
 
     this._postRepo.updateOne({ _id: postId }, { $inc: { commentsCount: 1 } });
-    return createdComment;
+    // Without this, the comment you just posted shows as unpopulated
+    // (frontend falls back to "Someone") until the list is refetched,
+    // while every other comment in the same list already shows a name.
+    // Cast: AbstractRepository<T>.create()'s generic return type doesn't
+    // collapse to a concrete Mongoose Document, so .populate()'s
+    // overloads don't resolve - a TS inference gap, not a runtime issue.
+    return await (createdComment as any).populate({
+      path: "userId",
+      select: "userName profilePic",
+    });
   }
 
   // async addReaction(addReactionDTO:AddR)
@@ -77,7 +86,11 @@ export class CommentService {
     const filter: QueryFilter<IComment> = { postId: params.postId };
     if (params.parentId !== undefined) filter.parentId = params.parentId;
 
-    const comments = await this._commentRepo.getAll(filter);
+    const comments = await this._commentRepo.getAll(
+      filter,
+      {},
+      { populate: { path: "userId", select: "userName profilePic" } },
+    );
     if (comments.length == 0) throw new NotFoundException("no comments exist");
     return comments;
   }
