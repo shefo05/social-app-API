@@ -98,11 +98,26 @@ export class CommentService {
     const filter: QueryFilter<IComment> = { postId: params.postId };
     if (params.parentId !== undefined) filter.parentId = params.parentId;
 
-    const comments = await this._commentRepo.getAll(
+    // `match` nulls out userId when that author is soft-deleted (rather
+    // than dropping the comment document); filtered out below. No
+    // pagination here (full list, no limit/skip), so filtering after
+    // populate doesn't create the page-size/hasNext mismatch that a
+    // paginated list would - unlike post.service.ts's getFeed(), which
+    // pre-filters user ids for exactly that reason. Accepted side effect:
+    // a hidden comment can orphan its replies in the client-side
+    // parentId tree, same as if it had been deleted outright.
+    const commentsRaw = await this._commentRepo.getAll(
       filter,
       {},
-      { populate: { path: "userId", select: "userName profilePic" } },
+      {
+        populate: {
+          path: "userId",
+          select: "userName profilePic",
+          match: { deletedAt: null },
+        },
+      },
     );
+    const comments = commentsRaw.filter((c: any) => c.userId);
     if (comments.length == 0) throw new NotFoundException("no comments exist");
     return comments;
   }

@@ -14,4 +14,5 @@ export const generalFields = {
   otp: z.string(),
   id: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid ObjectId"),
   reaction: z.enum(SYS_REACTION),
+  bio: z.string().max(160).optional(),
 };

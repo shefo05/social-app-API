@@ -15,4 +15,13 @@ router.get(
   },
 );
 
+router.get(
+  "/online-friends",
+  isAuthenticated,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const onlineFriendIds = await userService.getOnlineFriends(req.user._id);
+    return res.status(200).json({ message: "success", data: { onlineFriendIds } });
+  },
+);
+
 export default router;

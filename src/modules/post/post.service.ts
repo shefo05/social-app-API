@@ -10,13 +10,14 @@ import {
   userFriendRepo,
   UserFriendRepository,
 } from "../../DB/models/user-friend/user-friend.repository";
-import { after } from "node:test";
+import { userRepo, UserRepository } from "../../DB/models/user/user.repository";
 
 class PostSevice {
   constructor(
     private readonly _postRepo: PostRepository,
     private readonly _commentRepo: CommentRepository,
     private readonly _userFriendRepo: UserFriendRepository,
+    private readonly _userRepo: UserRepository,
   ) {}
 
   private async getPostsByUsers(
@@ -132,7 +133,19 @@ class PostSevice {
       (id) => new Types.ObjectId(id),
     );
 
-    return this.getPostsByUsers(feedUserIds, query);
+    // Filter out soft-deleted friends *before* the paginated posts query,
+    // not via a post-populate match+filter - filtering after the fact
+    // would shrink a page below `limit` while the +1-slice hasNext logic
+    // still says there's more, which there might not be. The requesting
+    // user's own id needs no such check: isAuthenticated already rejects
+    // a soft-deleted account before this ever runs.
+    const activeUsers = await this._userRepo.getAll(
+      { _id: { $in: feedUserIds }, deletedAt: null },
+      { _id: 1 },
+    );
+    const activeUserIds = activeUsers.map((u) => u._id);
+
+    return this.getPostsByUsers(activeUserIds, query);
   }
 
   async getMyPosts(userId: Types.ObjectId, query: ListPostsQueryDTO) {
@@ -140,4 +153,4 @@ class PostSevice {
   }
 }
 
-export default new PostSevice(postRepo, commentRepo, userFriendRepo);
+export default new PostSevice(postRepo, commentRepo, userFriendRepo, userRepo);

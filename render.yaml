@@ -25,3 +25,5 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+      - key: DEFAULT_AVATAR_URL
+        sync: false

@@ -2,6 +2,7 @@ import { Server, Socket } from "socket.io";
 import { Server as HttpServer } from "node:http";
 import { verifyToken } from "../utils/jwt.utils";
 import authService from "../../modules/auth/auth.service";
+import { userFriendRepo } from "../../DB/models/user-friend/user-friend.repository";
 
 const OBJECT_ID_REGEX = /^[a-fA-F0-9]{24}$/;
 
@@ -15,6 +16,17 @@ let currentGateway: RealtimeGateway | null = null;
 
 export class RealtimeGateway {
   private _io: Server;
+
+  /**
+   * Presence tracking: userId -> set of connected socket ids. In-memory,
+   * not Redis-backed - correct and sufficient for a single server
+   * instance (this app's deployment target), but would need a shared
+   * store (Redis pub/sub or similar) to stay correct across multiple
+   * instances. A Set (not a counter) handles multi-tab correctly: the
+   * user is "online" as long as the set is non-empty, and closing one of
+   * two tabs just removes one entry instead of flipping them offline.
+   */
+  private _onlineUsers = new Map<string, Set<string>>();
 
   constructor(server: HttpServer) {
     this._io = new Server(server, { cors: { origin: "*" } });
@@ -70,6 +82,7 @@ export class RealtimeGateway {
     this._io.on("connection", (socket: Socket) => {
       const userId = socket.data.userId as string;
       socket.join(`user:${userId}`);
+      this._handlePresenceConnect(userId, socket.id);
 
       socket.on("post:join", (payload: { postId?: string }) => {
         if (payload?.postId && OBJECT_ID_REGEX.test(payload.postId)) {
@@ -82,7 +95,60 @@ export class RealtimeGateway {
           socket.leave(`post:${payload.postId}`);
         }
       });
+
+      socket.on("disconnect", () => {
+        this._handlePresenceDisconnect(userId, socket.id);
+      });
     });
+  }
+
+  /**
+   * First socket for this user -> online transition, broadcast to
+   * friends only (via their `user:{id}` rooms), never globally. A
+   * second/third tab just adds to the existing set with no broadcast.
+   */
+  private async _handlePresenceConnect(userId: string, socketId: string) {
+    const isFirstConnection = !this._onlineUsers.has(userId);
+    let sockets = this._onlineUsers.get(userId);
+    if (!sockets) {
+      sockets = new Set();
+      this._onlineUsers.set(userId, sockets);
+    }
+    sockets.add(socketId);
+
+    if (isFirstConnection) {
+      const friendIds = await this._getFriendIds(userId);
+      for (const friendId of friendIds) {
+        this.emitToUser(friendId, "presence:online", { userId });
+      }
+    }
+  }
+
+  /** Last socket for this user closing -> offline transition. */
+  private async _handlePresenceDisconnect(userId: string, socketId: string) {
+    const sockets = this._onlineUsers.get(userId);
+    if (!sockets) return;
+    sockets.delete(socketId);
+    if (sockets.size > 0) return;
+
+    this._onlineUsers.delete(userId);
+    const friendIds = await this._getFriendIds(userId);
+    for (const friendId of friendIds) {
+      this.emitToUser(friendId, "presence:offline", { userId });
+    }
+  }
+
+  private async _getFriendIds(userId: string): Promise<string[]> {
+    const relations = await userFriendRepo.getAll({
+      $or: [{ user: userId }, { friend: userId }],
+    });
+    return relations.map((r) =>
+      r.user.toString() === userId ? r.friend.toString() : r.user.toString(),
+    );
+  }
+
+  isOnline(userId: string): boolean {
+    return (this._onlineUsers.get(userId)?.size ?? 0) > 0;
   }
 
   emitToPost(postId: string, event: string, payload: unknown) {

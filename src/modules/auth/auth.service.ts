@@ -28,26 +28,25 @@ import { IMailProvider } from "../../common/email/mail.interface";
 import { ICacheProvider } from "../../common/cache/cache.interface";
 import { redisCacheProvider } from "../../common/cache/redis/init";
 import { Types } from "mongoose";
-import { postRepo, PostRepository } from "../../DB/models/post/post.repository";
-import {
-  commentRepo,
-  CommentRepository,
-} from "../../DB/models/comment/comment.repository";
-
 
 const OTP_TTL_SECONDS = 3 * 60;
 
 class AuthService {
   constructor(
     private _userRepo: UserRepository,
-    private _postRepo: PostRepository,
-    private _commentRepo: CommentRepository,
     private _mailProvider: IMailProvider,
     private _cacheProvider: ICacheProvider,
   ) {}
 
+  /**
+   * "Is this a valid, currently-active session?" - used by isAuthenticated,
+   * the socket handshake middleware, and the GraphQL `user` query. Merging
+   * deletedAt: null here (rather than at each call site) means a
+   * soft-deleted account is rejected everywhere a session is checked, in
+   * one place - the only way back in is login(), which reactivates.
+   */
   async checkUserExist(filter: QueryFilter<IUser>) {
-    return await this._userRepo.getOne(filter);
+    return await this._userRepo.getOne({ ...filter, deletedAt: null });
   }
 
   async signup(signupDTO: SignupDTO) {
@@ -198,8 +197,15 @@ class AuthService {
     const { email, password } = loginDTO;
     const DUMMY_HASH = "$2b$10$abcdefghijklmnopqrstuv1234567890abcdef";
 
-    // password now has select: false on the schema - opt back in here,
-    // the one legitimate place that needs the hash for bcrypt.compare().
+    // Deliberately *not* routed through checkUserExist() here - that helper
+    // excludes soft-deleted accounts, but login is exactly the path that
+    // must still find them (to verify the password) in order to reactivate
+    // them. An account past its 30-day grace period has already been
+    // hard-deleted by the cleanup job, so it's simply absent here and
+    // falls through to the same generic "invalid credentials" as any
+    // other unknown email - deliberately not distinguishing "wrong
+        // password" from "this account no longer exists" to avoid leaking
+    // account history.
     const userExist = await this._userRepo.getOne({ email }, "+password");
 
     const hash = userExist?.password ?? DUMMY_HASH;
@@ -207,6 +213,15 @@ class AuthService {
 
     if (!matchPassword || !userExist)
       throw new BadRequestException("invalid credentials");
+
+    // Reactivation: a successful login within the grace period clears the
+    // soft-delete marker. Existing friendships/posts/comments were never
+    // touched while deleted (only hidden from queries), so they reappear
+    // immediately - no separate "restore" step needed.
+    const reactivated = userExist.deletedAt != null;
+    if (reactivated) {
+      await this._userRepo.updateOne({ _id: userExist._id }, { deletedAt: null });
+    }
 
     const payloadData: JwtPayload = {
       sub: userExist._id.toString(),
@@ -218,7 +233,7 @@ class AuthService {
       );
     }
 
-    return generateTokens(payloadData);
+    return { ...generateTokens(payloadData), reactivated };
   }
 
   /**
@@ -241,27 +256,19 @@ class AuthService {
     return await this._userRepo.updateOne({ _id: id }, update);
   }
 
-  async delete(id: Types.ObjectId) {
-    const userPosts = await this._postRepo.getAll({ userId: id }, { _id: 1 });
-    const userPostIds = userPosts.map((post) => post._id);
-
-    if (userPostIds.length > 0) {
-      await this._commentRepo.deleteMany({ postId: { $in: userPostIds } });
-    }
-
-    await this._commentRepo.deleteMany({ userId: id });
-    await this._postRepo.deleteMany({ userId: id });
-
-    return await this._userRepo.deleteOne({ _id: id });
+  /**
+   * Soft-delete: marks the account, doesn't touch it or anything it
+   * owns. Posts/comments/friendships/requests are hidden from every
+   * relevant query (see the deletedAt filters swept across post/comment/
+   * request/user services) but not removed - if the user logs back in
+   * within 30 days, login() clears deletedAt and everything reappears
+   * exactly as it was. Only the scheduled cleanup job
+   * (src/common/jobs/cleanup-deleted-accounts.job.ts) actually deletes
+   * data, once the grace period has passed.
+   */
+  async softDelete(id: Types.ObjectId) {
+    await this._userRepo.updateOne({ _id: id }, { deletedAt: new Date() });
   }
-
- 
 }
 
-export default new AuthService(
-  userRepo,
-  postRepo,
-  commentRepo,
-  sendgridProvider,
-  redisCacheProvider,
-);
+export default new AuthService(userRepo, sendgridProvider, redisCacheProvider);

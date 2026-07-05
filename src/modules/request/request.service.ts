@@ -32,6 +32,15 @@ class RequestService {
       throw new BadRequestException("you can't send request to yourself ");
     }
 
+    // Soft-deleted accounts can't receive new requests - and this also
+    // catches a receiverId that never existed at all, which nothing here
+    // previously checked.
+    const receiverExist = await this._userRepo.getOne({
+      _id: receiver,
+      deletedAt: null,
+    });
+    if (!receiverExist) throw new NotFoundException("user not found");
+
     const userFriendExist = await this._userFriendRepo.getOne({
       $or: [
         { user: sender, friend: receiver },
@@ -94,6 +103,18 @@ class RequestService {
       throw new UnauthorizedException(
         "you are not allowed to accept this request",
       );
+    }
+
+    // The sender may have soft-deleted their account after sending the
+    // request but before it was accepted - drop the stale request instead
+    // of creating a friendship with a hidden account.
+    const senderExist = await this._userRepo.getOne({
+      _id: requestExist.sender,
+      deletedAt: null,
+    });
+    if (!senderExist) {
+      await this._requestRepo.deleteOne({ _id: reqId });
+      throw new NotFoundException("this request is no longer available");
     }
 
     await this._requestRepo.deleteOne({ _id: reqId });
@@ -182,12 +203,19 @@ class RequestService {
     // Same populate the socket request:new/request:accepted payloads
     // already use - an unpopulated sender/receiver id is close to
     // useless for a requests list UI, same reasoning as those events.
+    // `match` nulls out the populated field (rather than dropping the
+    // request document) when the other party is soft-deleted - filtered
+    // out below. Counts below are left as plain countDocuments and can be
+    // briefly stale by the (rare, self-correcting-within-30-days) count of
+    // requests to/from an account mid-grace-period - a deliberate
+    // simplicity trade-off rather than a $lookup aggregation for an edge
+    // case this narrow.
     const populateParties = [
-      { path: "sender", select: "userName profilePic" },
-      { path: "receiver", select: "userName profilePic" },
+      { path: "sender", select: "userName profilePic", match: { deletedAt: null } },
+      { path: "receiver", select: "userName profilePic", match: { deletedAt: null } },
     ];
 
-    const [incomingCount, outgoingCount, incomingRecent, outgoingRecent] =
+    const [incomingCount, outgoingCount, incomingRecentRaw, outgoingRecentRaw] =
       await Promise.all([
         this._requestRepo.model.countDocuments({ receiver: userId }),
         this._requestRepo.model.countDocuments({ sender: userId }),
@@ -210,6 +238,10 @@ class RequestService {
           },
         ),
       ]);
+
+    const hasBothParties = (r: any) => r.sender && r.receiver;
+    const incomingRecent = incomingRecentRaw.filter(hasBothParties);
+    const outgoingRecent = outgoingRecentRaw.filter(hasBothParties);
 
     return {
       incomingCount,

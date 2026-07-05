@@ -137,11 +137,15 @@ router.post(
   },
 );
 
+// Soft-delete: marks deletedAt and immediately hides the account (and
+// everything it owns) everywhere - see softDelete()'s doc comment. Logging
+// back in within 30 days reactivates it; the scheduled cleanup job hard-
+// deletes it once the grace period passes.
 router.delete(
-  "/",
+  "/delete-account",
   isAuthenticated,
   async (req: Request, res: Response, next: NextFunction) => {
-    await authService.delete(req.user._id);
+    await authService.softDelete(req.user._id);
     return res.sendStatus(204);
   },
 );

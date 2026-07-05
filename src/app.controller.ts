@@ -17,6 +17,7 @@ import { postGQLQuery } from "./modules/post/graphql/post.query.gql";
 import { commentGQLQuery } from "./modules/comment/graphql/comment.gql.query";
 import { postMutationGql } from "./modules/post/graphql/post.mutation.gql";
 import { RealtimeGateway } from "./common/realtime-gateway/realtime.gateway";
+import { scheduleAccountCleanupJob } from "./common/jobs/cleanup-deleted-accounts.job";
 
 export function bootstrap() {
   const app = express();
@@ -99,6 +100,7 @@ export function bootstrap() {
   });
 
   new RealtimeGateway(server);
+  scheduleAccountCleanupJob();
 }
 
 // import { createHandler } from "graphql-http/lib/use/express";
