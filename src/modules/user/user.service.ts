@@ -5,6 +5,7 @@ import {
 } from "../../DB/models/user-friend/user-friend.repository";
 import { userRepo, UserRepository } from "../../DB/models/user/user.repository";
 import { getRealtimeGateway } from "../../common/realtime-gateway/realtime.gateway";
+import { NotFoundException } from "../../common";
 
 class UserService {
   constructor(
@@ -57,6 +58,24 @@ class UserService {
     return friendIds
       .filter((friendId) => gateway.isOnline(friendId.toString()))
       .map((friendId) => friendId.toString());
+  }
+
+  /**
+   * Public profile for GET /user/:id - an explicit field *allowlist* via
+   * projection (not an exclude-list), so a new sensitive field added to
+   * IUser later is excluded by default instead of accidentally leaking
+   * until someone remembers to blocklist it here too. 404s for both "no
+   * such id" and "soft-deleted" - from an outside viewer's perspective
+   * those are the same thing, and distinguishing them would leak that a
+   * given id used to belong to someone.
+   */
+  async getPublicProfile(id: Types.ObjectId) {
+    const user = await this._userRepo.getOne(
+      { _id: id, deletedAt: null },
+      "userName profilePic bio createdAt",
+    );
+    if (!user) throw new NotFoundException("user not found");
+    return user;
   }
 }
 

@@ -27,3 +27,5 @@ services:
         sync: false
       - key: DEFAULT_AVATAR_URL
         sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false

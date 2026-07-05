@@ -151,6 +151,24 @@ class PostSevice {
   async getMyPosts(userId: Types.ObjectId, query: ListPostsQueryDTO) {
     return this.getPostsByUsers([userId], query);
   }
+
+  /**
+   * Backs GET /post/user/:id (public profile posts). Unlike getMyPosts,
+   * the target isn't the authenticated caller, so it isn't already
+   * guaranteed active by isAuthenticated - 404 up front for a
+   * nonexistent or soft-deleted target, matching GET /user/:id's
+   * behavior for the same id. Reuses getPostsByUsers, so population and
+   * pagination are identical to the feed.
+   */
+  async getByUser(targetUserId: Types.ObjectId, query: ListPostsQueryDTO) {
+    const targetExists = await this._userRepo.getOne(
+      { _id: targetUserId, deletedAt: null },
+      { _id: 1 },
+    );
+    if (!targetExists) throw new NotFoundException("user not found");
+
+    return this.getPostsByUsers([targetUserId], query);
+  }
 }
 
 export default new PostSevice(postRepo, commentRepo, userFriendRepo, userRepo);

@@ -1,4 +1,5 @@
 import { JwtPayload } from "jsonwebtoken";
+import { TokenPayload } from "google-auth-library";
 import {
   BadRequestException,
   compare,
@@ -10,11 +11,16 @@ import {
   otpEmailTemplate,
   sendgridProvider,
   NotFoundException,
+  UnauthorizedException,
+  SYS_PROVIDER,
+  SYS_ROLE,
+  verifyGoogleIdToken,
 } from "../../common";
 import { generateTokens } from "../../common/utils/jwt.utils";
 import { userRepo, UserRepository } from "../../DB/models/user/user.repository";
 import {
   ForgotPasswordDTO,
+  GoogleAuthDTO,
   LoginDTO,
   ResetPasswordConfirmDTO,
   ResetPasswordDTO,
@@ -30,6 +36,23 @@ import { redisCacheProvider } from "../../common/cache/redis/init";
 import { Types } from "mongoose";
 
 const OTP_TTL_SECONDS = 3 * 60;
+
+/**
+ * Google's `name` can be missing, or longer than userName's 20-char
+ * schema limit, or (very rarely) shorter than its 2-char minimum -
+ * derive something that always satisfies both bounds rather than
+ * letting an edge-case name crash user creation with a Mongoose
+ * validation error.
+ */
+function deriveGoogleUserName(payload: TokenPayload): string {
+  const fullName =
+    payload.name?.trim() ||
+    `${payload.given_name ?? ""} ${payload.family_name ?? ""}`.trim();
+  const emailLocalPart = payload.email!.split("@")[0] ?? "user";
+  let candidate = fullName.length >= 2 ? fullName : emailLocalPart;
+  if (candidate.length < 2) candidate = `${candidate}User`;
+  return candidate.slice(0, 20);
+}
 
 class AuthService {
   constructor(
@@ -234,6 +257,81 @@ class AuthService {
     }
 
     return { ...generateTokens(payloadData), reactivated };
+  }
+
+  /**
+   * Frontend gets an ID token from Google Identity Services and sends it
+   * here - nothing about Google's OAuth flow (redirects, auth codes,
+   * client secret) touches the backend, only a signed JWT to verify.
+   *
+   * Deliberate choice: match purely by email and log in whatever account
+   * is found, regardless of its `provider`. A password-based account
+   * with the same (Google-verified) email is auto-linked rather than
+   * rejected - rejecting would mean "sorry, log in with the password you
+   * forgot you set," a worse and less secure outcome than trusting
+   * Google's own email verification (checked below via email_verified).
+   * `provider` therefore records "how this account was first created,"
+   * not "the only way in" - an existing password stays untouched and
+   * still works.
+   */
+  async googleAuth(googleAuthDTO: GoogleAuthDTO) {
+    let payload: TokenPayload;
+    try {
+      payload = await verifyGoogleIdToken(googleAuthDTO.idToken);
+    } catch {
+      // google-auth-library throws a raw Error (malformed token, bad
+      // signature, wrong audience, expired) with no `.cause` - same
+      // problem isAuthenticated already normalizes for jwt.verify, so it
+      // doesn't fall through to the global handler's 500 default.
+      throw new UnauthorizedException("invalid or expired Google token");
+    }
+    if (!payload.email) throw new BadRequestException("invalid Google token");
+    if (!payload.email_verified) {
+      throw new UnauthorizedException("Google account email is not verified");
+    }
+
+    const { email } = payload;
+
+    let user = await this._userRepo.getOne({ email });
+    let isNewUser = false;
+
+    if (!user) {
+      isNewUser = true;
+      // No password field at all here - the schema only requires one
+      // when provider != google (see user.model.ts). login()'s
+      // "+password" fetch on a passwordless account comes back
+      // undefined, falls back to the same DUMMY_HASH used for unknown
+      // emails, and bcrypt.compare() just returns false - a clean
+      // "invalid credentials" rather than a crash, with no extra code
+      // needed here or in login().
+      user = (await this._userRepo.create({
+        userName: deriveGoogleUserName(payload),
+        email,
+        provider: SYS_PROVIDER.google,
+        role: SYS_ROLE.user,
+        // Google's own picture is more personalized than our generic
+        // default - fall through to the schema default only if absent.
+        ...(payload.picture ? { profilePic: payload.picture } : {}),
+      })) as any;
+    }
+
+    // Same reactivation semantics as password login(): a soft-deleted
+    // account signing back in via Google within the grace period is
+    // still just as much "them" as one signing back in with a password.
+    const reactivated = user!.deletedAt != null;
+    if (reactivated) {
+      await this._userRepo.updateOne({ _id: user!._id }, { deletedAt: null });
+    }
+
+    if (googleAuthDTO.FCM) {
+      await this._cacheProvider.addToSet(`${user!._id.toString()}:FCM`, googleAuthDTO.FCM);
+    }
+
+    return {
+      ...generateTokens({ sub: user!._id.toString() }),
+      reactivated,
+      isNewUser,
+    };
   }
 
   /**

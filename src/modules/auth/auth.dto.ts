@@ -1,6 +1,7 @@
 import z from "zod";
 import {
   forgotPasswordSchema,
+  googleAuthSchema,
   loginSchema,
   resetPasswordConfirmSchema,
   resetPasswordSchema,
@@ -47,3 +48,4 @@ export type UpdateUserDTO = z.infer<typeof updateUserSchema>;
 
 export type ForgotPasswordDTO = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordConfirmDTO = z.infer<typeof resetPasswordConfirmSchema>;
+export type GoogleAuthDTO = z.infer<typeof googleAuthSchema>;

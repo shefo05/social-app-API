@@ -40,6 +40,11 @@ export const resetPasswordConfirmSchema = z.object({
   otp: GF.otp,
   newPassword: GF.password,
 });
+export const googleAuthSchema = z.object({
+  idToken: z.string().min(10),
+  FCM: z.string().optional(),
+});
+
 export const updateUserSchema = z.object({
   email: GF.email.optional(),
   phoneNumber: GF.phoneNumber.optional(),

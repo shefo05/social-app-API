@@ -9,6 +9,7 @@ import { isAuthenticated, isvalid, uploadAvatar } from "../../middleware";
 import { multerUploadFile } from "../../common";
 import {
   forgotPasswordSchema,
+  googleAuthSchema,
   loginSchema,
   resetPasswordConfirmSchema,
   resetPasswordSchema,
@@ -104,6 +105,19 @@ router.post(
       message: "user loggedin successfully",
       success: true,
       data: tokens,
+    });
+  },
+);
+
+router.post(
+  "/google",
+  isvalid(googleAuthSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    const result = await authService.googleAuth(req.body);
+    return res.status(200).json({
+      message: "user loggedin successfully",
+      success: true,
+      data: result,
     });
   },
 );

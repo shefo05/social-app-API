@@ -8,7 +8,13 @@ import {
 } from "./post.validation";
 import { isAuthenticated, isvalid, uploadAttachments } from "../../middleware";
 import { default as commentRouter } from "../comment/comment.controller";
-import { addReaction, BadRequestException, multerUploadFile } from "../../common";
+import {
+  addReaction,
+  BadRequestException,
+  generalFields as GF,
+  NotFoundException,
+  multerUploadFile,
+} from "../../common";
 import { postRepo } from "../../DB/models/post/post.repository";
 // import { firebasePushNotificationProvider } from "../../common/notification/firebase/init";
 import { redisCacheProvider } from "../../common/cache/redis/init";
@@ -84,6 +90,30 @@ router.get(
     return res.status(200).json({
       success: true,
       ...myPosts,
+    });
+  },
+);
+
+// Public profile's posts tab - unauthenticated, same treatment as GET
+// /:id below (a permalink already needs no auth). Two path segments, so
+// registration order relative to the single-segment /:id catch-all
+// below doesn't actually matter here, but it's kept above it anyway for
+// readability, next to /feed and /me.
+router.get(
+  "/user/:id",
+  async (req: Request, res: Response, next: NextFunction) => {
+    if (!GF.id.safeParse(req.params.id).success) {
+      throw new NotFoundException("user not found");
+    }
+    const query = listPostsQuerySchema.parse(req.query);
+    const posts = await postService.getByUser(
+      new mongoose.Types.ObjectId(req.params.id as string),
+      query,
+    );
+
+    return res.status(200).json({
+      success: true,
+      ...posts,
     });
   },
 );
