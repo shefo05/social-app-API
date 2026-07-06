@@ -83,7 +83,14 @@ export class RealtimeGateway {
     this._io.on("connection", (socket: Socket) => {
       const userId = socket.data.userId as string;
       socket.join(`user:${userId}`);
-      this._handlePresenceConnect(userId, socket.id);
+      // Fire-and-forget (connection handlers can't be awaited), but never
+      // bare - _getFriendIds() does a real DB query, and an unhandled
+      // rejection here (e.g. a transient DB blip) would otherwise crash
+      // the whole process by default, taking down every connected user
+      // over one failed presence broadcast.
+      this._handlePresenceConnect(userId, socket.id).catch((err) => {
+        console.log("presence connect handler failed:", err.message);
+      });
 
       socket.on("post:join", (payload: { postId?: string }) => {
         if (payload?.postId && OBJECT_ID_REGEX.test(payload.postId)) {
@@ -98,7 +105,9 @@ export class RealtimeGateway {
       });
 
       socket.on("disconnect", () => {
-        this._handlePresenceDisconnect(userId, socket.id);
+        this._handlePresenceDisconnect(userId, socket.id).catch((err) => {
+          console.log("presence disconnect handler failed:", err.message);
+        });
       });
     });
   }

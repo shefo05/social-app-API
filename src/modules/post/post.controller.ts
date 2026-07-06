@@ -26,10 +26,14 @@ router.use("/:postId/comment", commentRouter);
 
 router.post(
   "/",
+  // isAuthenticated first - same reasoning as PATCH /auth/update: it only
+  // needs the Authorization header, so an unauthenticated request is now
+  // rejected before multer parses the body or anything gets uploaded to
+  // Cloudinary, instead of after.
+  isAuthenticated,
   multerUploadFile().array("attachments", 4),
   uploadAttachments("posts"),
   isvalid(createPostSchema),
-  isAuthenticated,
   async (req: Request, res: Response, next: NextFunction) => {
     const createdPost = await postService.create(
       req.body,

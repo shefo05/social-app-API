@@ -131,10 +131,16 @@ router.post(
 
 router.patch(
   "/update",
+  // isAuthenticated first: it only reads the Authorization header, so it
+  // doesn't need multer to have parsed the body first. Was running last,
+  // so an unauthenticated/invalid-token request still paid for multer
+  // parsing the whole multipart body and a full Cloudinary upload before
+  // ever being rejected - real bandwidth/storage/cost for zero valid
+  // credentials required.
+  isAuthenticated,
   multerUploadFile().single("avatar"),
   uploadAvatar("avatars"),
   isvalid(updateUserSchema),
-  isAuthenticated,
   async (req: Request, res: Response, next: NextFunction) => {
     const updatedUser = await authService.update(
       req.user._id,

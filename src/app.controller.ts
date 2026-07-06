@@ -74,10 +74,19 @@ export function bootstrap() {
       },
       schema,
       formatError: (error) => {
+        // Same known-vs-unknown distinction as the REST error handler,
+        // just reached differently: graphql-js wraps a resolver's thrown
+        // error into its own GraphQLError, so `.cause` from our exception
+        // classes lives on `error.originalError`, not on `error` itself
+        // (which never carries a numeric `.cause` at all - checking
+        // `error.cause` directly, as this did before, meant every GraphQL
+        // error unconditionally leaked `error.message`, known or not).
+        const cause = error instanceof GraphQLError ? error.originalError?.cause : undefined;
+        const isKnownError = typeof cause === "number";
         return {
-          message: error.message,
+          message: isKnownError ? error.message : "something went wrong, please try again",
           success: false,
-          statusCode: error.cause || 500,
+          statusCode: isKnownError ? cause : 500,
         } as unknown as GraphQLError;
       },
     }),
@@ -92,8 +101,18 @@ export function bootstrap() {
   app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     console.log(err);
 
-    return res.status((err.cause as number) || 500).json({
-      message: err.message,
+    // Our own exception classes (BadRequestException, NotFoundException,
+    // etc.) all set `.cause` to a real HTTP status - that's the signal
+    // this is a deliberate, client-facing error, safe to show err.message
+    // for. Anything else (a raw driver error, a bug, a third-party
+    // library's exception) has no `.cause`, and was previously still
+    // shown to the client verbatim - a real information leak (this project
+    // has hit it live: an internal SendGrid API-key error string went
+    // straight to a signup response before that specific call got wrapped).
+    // This is the catch-all for every other unwrapped case.
+    const isKnownError = typeof err.cause === "number";
+    return res.status(isKnownError ? (err.cause as number) : 500).json({
+      message: isKnownError ? err.message : "something went wrong, please try again",
       success: false,
       details: err instanceof BadRequestException ? err.details : undefined,
     });
