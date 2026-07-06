@@ -77,7 +77,11 @@ class PostSevice {
     return await this._postRepo.getOne(
       { _id: id },
       {},
-      { populate: { path: "userId" } },
+      // Explicit field allowlist, same as every other populate in this
+      // file - this one was the odd one out (no select), so GET /post/:id
+      // (public, no auth) was returning the full author document
+      // including email.
+      { populate: { path: "userId", select: "userName profilePic" } },
     );
   }
 
