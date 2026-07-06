@@ -7,6 +7,12 @@ services:
     startCommand: npm start
     healthCheckPath: /health
     envVars:
+      # Fixed value, not a secret - pinned explicitly here (not left to
+      # whatever Render's own default happens to be) so the rate limiter's
+      # dev-only exemption has a hard structural backstop that can't
+      # silently stop applying if Render's default ever changes.
+      - key: NODE_ENV
+        value: production
       - key: DB_URL
         sync: false
       - key: SENDGRID_API_KEY
