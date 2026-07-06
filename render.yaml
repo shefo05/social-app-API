@@ -31,3 +31,5 @@ services:
         sync: false
       - key: ALLOWED_ORIGINS
         sync: false
+      - key: PHONE_ENCRYPTION_KEY
+        sync: false

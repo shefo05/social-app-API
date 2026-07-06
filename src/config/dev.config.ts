@@ -33,3 +33,7 @@ export const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
+
+// 32 random bytes, hex-encoded (64 hex chars) - used to encrypt/decrypt
+// phone numbers. Was hardcoded in source; see crypto.utils.ts.
+export const PHONE_ENCRYPTION_KEY = process.env.PHONE_ENCRYPTION_KEY as string;
