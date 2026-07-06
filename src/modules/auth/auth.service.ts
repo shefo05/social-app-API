@@ -72,6 +72,22 @@ class AuthService {
     return await this._userRepo.getOne({ ...filter, deletedAt: null });
   }
 
+  /**
+   * signup()/sendOTP()/forgotPassword() weren't wrapping the mail-provider
+   * call at all - a SendGrid failure (bad key, rate limit, network blip)
+   * bubbled up as a raw, un-normalized 500 with the provider's own
+   * internal error message exposed to the client. Normalizes to a clean,
+   * generic error instead.
+   */
+  private async sendMail(email: string, subject: string, html: string) {
+    try {
+      await this._mailProvider.send(email, subject, html);
+    } catch (err) {
+      console.log("mail provider send failed:", (err as Error).message);
+      throw new BadRequestException("failed to send email, please try again");
+    }
+  }
+
   async signup(signupDTO: SignupDTO) {
     let { email, password, phoneNumber } = signupDTO;
     const userExist = await this._userRepo.getOne({ email });
@@ -83,7 +99,7 @@ class AuthService {
 
     const otp = generateOTP();
 
-    await this._mailProvider.send(
+    await this.sendMail(
       email,
       "Your verification code",
       otpEmailTemplate({ otp, expiryMinutes: OTP_TTL_SECONDS / 60 }),
@@ -141,7 +157,7 @@ class AuthService {
         `you already have a valid otp, wait ${OTP_TTL_SECONDS / 60} minutes`,
       );
     const otp = generateOTP();
-    await this._mailProvider.send(
+    await this.sendMail(
       email,
       "Your verification code",
       otpEmailTemplate({ otp, expiryMinutes: OTP_TTL_SECONDS / 60 }),
@@ -196,7 +212,7 @@ class AuthService {
       );
 
     const otp = generateOTP();
-    await this._mailProvider.send(
+    await this.sendMail(
       email,
       "Reset your password",
       otpEmailTemplate({ otp, expiryMinutes: OTP_TTL_SECONDS / 60 }),

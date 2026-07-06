@@ -144,25 +144,6 @@ class RequestService {
     );
   }
 
-  async declineRequest(userId: mongoose.Types.ObjectId, id: string) {
-    const reqId = new mongoose.Types.ObjectId(id);
-
-    const requestExist = await this._requestRepo.getOne({ _id: reqId });
-    if (!requestExist)
-      throw new NotFoundException("request is no longer exist");
-
-    if (
-      !userId.equals(requestExist.sender) &&
-      !userId.equals(requestExist.receiver)
-    ) {
-      throw new UnauthorizedException(
-        "you are not allowed to decline this request",
-      );
-    }
-
-    await this._requestRepo.deleteOne({ _id: reqId });
-  }
-
   async declineRequest2(userId: mongoose.Types.ObjectId, id: string) {
     const reqId = new mongoose.Types.ObjectId(id);
 

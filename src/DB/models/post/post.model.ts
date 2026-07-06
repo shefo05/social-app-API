@@ -7,6 +7,8 @@ const schema = new Schema<IPost>(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      // Every feed/my-posts/user-profile-posts query filters on this.
+      index: true,
     },
     content: String,
     attachments: [String],

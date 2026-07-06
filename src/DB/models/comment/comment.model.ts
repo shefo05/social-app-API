@@ -4,8 +4,9 @@ import { IComment } from "../../../common";
 const schema = new Schema<IComment>(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    postId: { type: Schema.Types.ObjectId, ref: "Post", required: true },
-    parentId: { type: Schema.Types.ObjectId, ref: "Comment" },
+    // Every comment listing filters on this (and optionally parentId).
+    postId: { type: Schema.Types.ObjectId, ref: "Post", required: true, index: true },
+    parentId: { type: Schema.Types.ObjectId, ref: "Comment", index: true },
     mentions: [{ type: Schema.Types.ObjectId, ref: "User" }],
     content: String,
     attachment: String,
