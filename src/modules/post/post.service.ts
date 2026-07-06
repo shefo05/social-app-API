@@ -119,58 +119,103 @@ class PostSevice {
     }
   }
 
+  /**
+   * Friends-first feed: friends' (and your own) posts rank ahead of
+   * everyone else's, newest-first within each tier - not a hard filter
+   * with a separate all-or-nothing fallback for zero-friend users
+   * anymore. That fallback used to be a distinct code path; it now falls
+   * out of the same ranking for free, since "in-network" for a
+   * friendless user is just `[userId]` - their own posts (if any) rank
+   * first, then everyone else's, with no special-casing needed.
+   *
+   * Pagination: implemented as a two-tier sort key (in-network first,
+   * then createdAt desc) via one aggregation, not as two sequential
+   * "finish tier one, then tier two" queries. Deliberately - the
+   * alternative (paginate fully through friends' posts, only then start
+   * paginating non-friends') means whichever page happens to land on the
+   * tier boundary is partially empty (e.g. a user with 3 friends' posts
+   * and limit=10 would get a 3-item page 1, even though 7 more posts
+   * exist to fill it), and the boundary math has to be reworked in the
+   * service layer for every caller. A single sorted sequence with a
+   * synthetic rank field sidesteps both problems: every page is fully
+   * populated up to `limit` regardless of how many in-network posts
+   * exist, and the existing skip/limit/+1-slice hasNext logic applies
+   * completely unchanged.
+   */
+  private async getRankedFeed(
+    inNetworkIds: Types.ObjectId[],
+    query: ListPostsQueryDTO,
+  ) {
+    const skip = (query.page - 1) * query.limit;
+
+    const posts = await this._postRepo.model.aggregate([
+      {
+        $lookup: {
+          from: "users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "author",
+        },
+      },
+      { $unwind: "$author" },
+      // Soft-deleted authors are excluded here, not filtered after the
+      // fact - same reasoning as everywhere else in this file: filtering
+      // post-pagination would shrink a page below `limit` while hasNext
+      // still says there's more.
+      { $match: { "author.deletedAt": null } },
+      { $addFields: { _inNetwork: { $in: ["$userId", inNetworkIds] } } },
+      { $sort: { _inNetwork: -1, createdAt: -1 } },
+      { $skip: skip },
+      { $limit: query.limit + 1 },
+      {
+        $project: {
+          content: 1,
+          attachments: 1,
+          attachmentPublicIds: 1,
+          reactionsCount: 1,
+          commentsCount: 1,
+          sharesCount: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          userId: {
+            _id: "$author._id",
+            userName: "$author.userName",
+            profilePic: "$author.profilePic",
+          },
+        },
+      },
+    ]);
+
+    const hasNext = posts.length > query.limit;
+    const data = hasNext ? posts.slice(0, query.limit) : posts;
+
+    return {
+      data,
+      page: query.page,
+      limit: query.limit,
+      hasNext,
+    };
+  }
+
   async getFeed(userId: Types.ObjectId, query: ListPostsQueryDTO) {
     const relations = await this._userFriendRepo.getAll({
       $or: [{ user: userId }, { friend: userId }],
     });
 
-    // Was friends-only unconditionally: a brand-new user (zero
-    // friendships) got a feed of just their own posts - empty for
-    // anyone who hasn't posted yet, with no path to ever fill it other
-    // than posting into a void. Discovery feed (every active user's
-    // posts) for exactly that empty-network case, so there's something
-    // to see and someone to send a friend request to from post cards -
-    // sendRequest() doesn't require any prior feed relationship anyway.
-    // Once the first friendship exists, back to friends-only below -
-    // this is a fallback for new users, not a permanent global feed for
-    // everyone regardless of network size.
-    if (relations.length === 0) {
-      const activeUsers = await this._userRepo.getAll(
-        { deletedAt: null },
-        { _id: 1 },
-      );
-      return this.getPostsByUsers(
-        activeUsers.map((u) => u._id),
-        query,
-      );
-    }
-
-    const feedUserIdStrings = new Set<string>([userId.toString()]);
+    const inNetworkIdStrings = new Set<string>([userId.toString()]);
     for (const relation of relations) {
       if (relation.user.equals(userId)) {
-        feedUserIdStrings.add(relation.friend.toString());
+        inNetworkIdStrings.add(relation.friend.toString());
       } else {
-        feedUserIdStrings.add(relation.user.toString());
+        inNetworkIdStrings.add(relation.user.toString());
       }
     }
 
-    const feedUserIds = [...feedUserIdStrings].map(
+    const inNetworkIds = [...inNetworkIdStrings].map(
       (id) => new Types.ObjectId(id),
     );
 
-    // Filter out soft-deleted friends *before* the paginated posts query,
-    // not via a post-populate match+filter - filtering after the fact
-    // would shrink a page below `limit` while the +1-slice hasNext logic
-    // still says there's more, which there might not be. The requesting
-    // user's own id needs no such check: isAuthenticated already rejects
-    // a soft-deleted account before this ever runs.
-    const activeUsers = await this._userRepo.getAll(
-      { _id: { $in: feedUserIds }, deletedAt: null },
-      { _id: 1 },
-    );
-    const activeUserIds = activeUsers.map((u) => u._id);
-
-    return this.getPostsByUsers(activeUserIds, query);
+    return this.getRankedFeed(inNetworkIds, query);
   }
 
   async getMyPosts(userId: Types.ObjectId, query: ListPostsQueryDTO) {

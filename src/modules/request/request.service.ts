@@ -144,6 +144,35 @@ class RequestService {
     );
   }
 
+  /**
+   * Sender-only withdrawal of a pending request - distinct from
+   * declineRequest2 (which either party can call). A Request document
+   * only ever exists while pending (accept/decline both delete it), so
+   * finding it at all already means "still pending" - no separate status
+   * field or check needed for that half of "only while still pending."
+   */
+  async cancelRequest(userId: mongoose.Types.ObjectId, id: string) {
+    const reqId = new mongoose.Types.ObjectId(id);
+
+    const requestExist = await this._requestRepo.getOne({ _id: reqId });
+    if (!requestExist)
+      throw new NotFoundException("request is no longer exist");
+
+    if (!requestExist.sender.equals(userId)) {
+      throw new UnauthorizedException(
+        "you are not allowed to cancel this request",
+      );
+    }
+
+    await this._requestRepo.deleteOne({ _id: reqId });
+
+    getRealtimeGateway()?.emitToUser(
+      requestExist.receiver.toString(),
+      "request:cancelled",
+      { _id: reqId.toString() },
+    );
+  }
+
   async declineRequest2(userId: mongoose.Types.ObjectId, id: string) {
     const reqId = new mongoose.Types.ObjectId(id);
 

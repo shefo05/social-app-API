@@ -31,6 +31,22 @@ router.post(
   },
 );
 
+// Sender-only withdrawal of a request they sent, while it's still
+// pending - distinct from decline (either party, see declineRequest2),
+// and emits request:cancelled to the receiver so their incoming
+// list/badge updates live, unlike decline which stays silent.
+router.delete(
+  "/cancel/:requestId",
+  isAuthenticated,
+  async (req: Request, res: Response, next: NextFunction) => {
+    await requestService.cancelRequest(
+      req.user._id,
+      req.params.requestId as string,
+    );
+    return res.sendStatus(204);
+  },
+);
+
 router.post(
   "/accept/:id",
   isAuthenticated,
