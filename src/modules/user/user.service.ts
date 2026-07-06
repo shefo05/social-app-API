@@ -77,6 +77,30 @@ class UserService {
     if (!user) throw new NotFoundException("user not found");
     return user;
   }
+
+  /**
+   * Backs GET /user/search?q=. Same field allowlist as getPublicProfile,
+   * minus createdAt (not useful in a results dropdown). userName has no
+   * text index, so this is a $regex scan - fine at this app's scale, but
+   * would need a real text/Atlas Search index before it'd hold up on a
+   * userName-heavy table. `q` is regex-escaped so a query containing
+   * regex metacharacters (".*", "(", etc.) is matched literally instead
+   * of being interpreted as a pattern - both for correctness (a name
+   * with a literal "." shouldn't behave like a wildcard) and safety (an
+   * attacker-supplied pattern can't trigger catastrophic backtracking).
+   */
+  async search(searcherId: Types.ObjectId, q: string, limit: number) {
+    const escapedQuery = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return await this._userRepo.getAll(
+      {
+        userName: { $regex: escapedQuery, $options: "i" },
+        _id: { $ne: searcherId },
+        deletedAt: null,
+      },
+      "userName profilePic bio",
+      { limit, sort: { userName: 1 } },
+    );
+  }
 }
 
 export default new UserService(userRepo, userFriendRepo);

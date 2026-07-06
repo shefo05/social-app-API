@@ -1,8 +1,9 @@
 import { NextFunction, Request, Response, Router } from "express";
 import userService from "./user.service";
 import { isAuthenticated } from "../../middleware";
-import { generalFields as GF, NotFoundException } from "../../common";
+import { BadRequestException, generalFields as GF, NotFoundException } from "../../common";
 import { Types } from "mongoose";
+import { searchUsersQuerySchema } from "./user.validation";
 
 const router = Router();
 
@@ -23,6 +24,29 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     const onlineFriendIds = await userService.getOnlineFriends(req.user._id);
     return res.status(200).json({ message: "success", data: { onlineFriendIds } });
+  },
+);
+
+// Authenticated (unlike the public GET /:id below) - a name-search
+// endpoint is a discovery feature for logged-in members, not something
+// worth exposing anonymously. Must stay registered before the /:id
+// catch-all below, same reason as /online-friends above.
+router.get(
+  "/search",
+  isAuthenticated,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const result = searchUsersQuerySchema.safeParse(req.query);
+    if (!result.success) {
+      throw new BadRequestException(
+        "send a search query (\"q\") of at least 2 characters",
+      );
+    }
+    const users = await userService.search(
+      req.user._id,
+      result.data.q,
+      result.data.limit,
+    );
+    return res.status(200).json({ message: "success", data: users });
   },
 );
 

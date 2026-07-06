@@ -120,6 +120,27 @@ class PostSevice {
       $or: [{ user: userId }, { friend: userId }],
     });
 
+    // Was friends-only unconditionally: a brand-new user (zero
+    // friendships) got a feed of just their own posts - empty for
+    // anyone who hasn't posted yet, with no path to ever fill it other
+    // than posting into a void. Discovery feed (every active user's
+    // posts) for exactly that empty-network case, so there's something
+    // to see and someone to send a friend request to from post cards -
+    // sendRequest() doesn't require any prior feed relationship anyway.
+    // Once the first friendship exists, back to friends-only below -
+    // this is a fallback for new users, not a permanent global feed for
+    // everyone regardless of network size.
+    if (relations.length === 0) {
+      const activeUsers = await this._userRepo.getAll(
+        { deletedAt: null },
+        { _id: 1 },
+      );
+      return this.getPostsByUsers(
+        activeUsers.map((u) => u._id),
+        query,
+      );
+    }
+
     const feedUserIdStrings = new Set<string>([userId.toString()]);
     for (const relation of relations) {
       if (relation.user.equals(userId)) {
