@@ -3,6 +3,7 @@ import { Server as HttpServer } from "node:http";
 import { verifyToken } from "../utils/jwt.utils";
 import authService from "../../modules/auth/auth.service";
 import { userFriendRepo } from "../../DB/models/user-friend/user-friend.repository";
+import { ALLOWED_ORIGINS } from "../../config";
 
 const OBJECT_ID_REGEX = /^[a-fA-F0-9]{24}$/;
 
@@ -29,7 +30,7 @@ export class RealtimeGateway {
   private _onlineUsers = new Map<string, Set<string>>();
 
   constructor(server: HttpServer) {
-    this._io = new Server(server, { cors: { origin: "*" } });
+    this._io = new Server(server, { cors: { origin: ALLOWED_ORIGINS } });
     this._registerAuthMiddleware();
     this._registerConnectionHandlers();
     currentGateway = this;

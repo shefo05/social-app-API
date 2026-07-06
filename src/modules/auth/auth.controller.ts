@@ -5,7 +5,7 @@ import {
   Router,
 } from "express";
 import authService from "./auth.service";
-import { isAuthenticated, isvalid, uploadAvatar } from "../../middleware";
+import { authLimiter, isAuthenticated, isvalid, uploadAvatar } from "../../middleware";
 import { multerUploadFile } from "../../common";
 import {
   forgotPasswordSchema,
@@ -23,6 +23,7 @@ const router = Router();
 
 router.post(
   "/signup",
+  authLimiter,
   isvalid(signupSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     await authService.signup(req.body);
@@ -35,6 +36,7 @@ router.post(
 
 router.post(
   "/verify-account",
+  authLimiter,
   isvalid(verifyAccountSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     await authService.verifyAccount(req.body);
@@ -47,6 +49,7 @@ router.post(
 
 router.post(
   "/send-otp",
+  authLimiter,
   isvalid(sendOtpSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     await authService.sendOTP(req.body);
@@ -74,6 +77,7 @@ router.patch(
 // session, which a locked-out user doesn't have by definition.
 router.post(
   "/forgot-password",
+  authLimiter,
   isvalid(forgotPasswordSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     await authService.forgotPassword(req.body);
@@ -86,6 +90,7 @@ router.post(
 
 router.post(
   "/reset-password-confirm",
+  authLimiter,
   isvalid(resetPasswordConfirmSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     await authService.resetPasswordConfirm(req.body);
@@ -98,6 +103,7 @@ router.post(
 
 router.post(
   "/login",
+  authLimiter,
   isvalid(loginSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     const tokens = await authService.login(req.body);
@@ -111,6 +117,7 @@ router.post(
 
 router.post(
   "/google",
+  authLimiter,
   isvalid(googleAuthSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     const result = await authService.googleAuth(req.body);

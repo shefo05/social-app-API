@@ -24,3 +24,12 @@ export const DEFAULT_AVATAR_URL = process.env.DEFAULT_AVATAR_URL as string;
 // Identity Services / One Tap), and google-auth-library only needs the
 // client id to verify that token's signature and audience.
 export const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID as string;
+
+// Comma-separated allowlist for both REST CORS and the Socket.IO
+// handshake's CORS - was `origin: "*"` on both. Empty entries (blank
+// var, stray trailing comma) are filtered out rather than passed
+// through as an accidental `""` origin match.
+export const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);

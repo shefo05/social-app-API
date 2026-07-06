@@ -31,6 +31,7 @@
     "cloudinary": "^2.10.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
     "firebase-admin": "^13.9.0",
     "google-auth-library": "^10.9.0",
     "graphql": "^16.14.0",

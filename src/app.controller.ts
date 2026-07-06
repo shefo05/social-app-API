@@ -15,6 +15,7 @@ import { GraphQLError, GraphQLObjectType, GraphQLSchema, GraphQLString } from "g
 import { postMutationGql } from "./modules/post/graphql/post.mutation.gql";
 import { RealtimeGateway } from "./common/realtime-gateway/realtime.gateway";
 import { scheduleAccountCleanupJob } from "./common/jobs/cleanup-deleted-accounts.job";
+import { ALLOWED_ORIGINS } from "./config";
 
 export function bootstrap() {
   const app = express();
@@ -28,7 +29,11 @@ export function bootstrap() {
   redisConnect();
 
   app.use(express.json());
-  app.use(cors({ origin: "*" }));
+  // Non-browser callers (curl, Postman, mobile, server-to-server) send no
+  // Origin header at all and are unaffected either way - this only
+  // restricts which *browser* origins get Access-Control-Allow-Origin
+  // back, replacing the previous wildcard.
+  app.use(cors({ origin: ALLOWED_ORIGINS }));
 
   const query = new GraphQLObjectType({
     name: "RootQuery",
