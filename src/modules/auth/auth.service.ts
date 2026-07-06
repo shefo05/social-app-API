@@ -131,7 +131,22 @@ class AuthService {
     if (otp != verifyAccoutDTO.otp)
       throw new BadRequestException("invalid otp!");
 
-    await this._userRepo.create(JSON.parse(userData));
+    try {
+      await this._userRepo.create(JSON.parse(userData));
+    } catch (err) {
+      // signup()'s existence check is a check-then-write race, not a
+      // real guarantee - two verifyAccount() calls for the same email
+      // landing close together (double-submit, two tabs/devices) can
+      // both pass that check and both reach create() here. The email
+      // field's unique index is the actual backstop; this converts
+      // Mongo's raw E11000 duplicate-key error into the same clean,
+      // specific message signup()'s own check already uses, instead of
+      // it falling through to the generic "something went wrong".
+      if ((err as { code?: number }).code === 11000) {
+        throw new ConflictException("user already exist !");
+      }
+      throw err;
+    }
 
     // await deleteFromCache(`${email}:otp`);
     await this._cacheProvider.delete(`${email}:otp`);

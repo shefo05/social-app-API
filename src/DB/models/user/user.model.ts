@@ -13,6 +13,14 @@ const schema = new Schema<IUser>(
     email: {
       type: String,
       required: true,
+      // Was app-level only (signup()'s existence check before create),
+      // which is a check-then-write race, not a real guarantee - it's
+      // what let a real duplicate account (shafeelgendy@gmail.com) exist
+      // in production until it was manually removed. The DB-level
+      // constraint is the actual backstop; the app-level check stays too,
+      // since it's what gives a normal duplicate signup its immediate,
+      // specific error instead of waiting on a write to fail.
+      unique: true,
     },
     phoneNumber: String,
     password: {
