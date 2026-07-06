@@ -13,6 +13,13 @@ export const isvalid = (schema: ZodObject) => {
       throw new BadRequestException("validation error", errMessages);
     }
 
+    // Was validating but discarding the parsed result, so req.body
+    // stayed exactly as the client sent it - any extra field zod would
+    // have silently stripped (e.g. "role", "password", "deletedAt" on a
+    // schema that never declared them) survived untouched into whatever
+    // the controller/service does with req.body next. Reassigning here
+    // makes that stripping actually take effect.
+    req.body = result.data;
     next();
   };
 };
@@ -26,5 +33,10 @@ export const isvalidGQL = async (schema: ZodObject, args: unknown) => {
     }));
     throw new BadRequestException("validation error", errMessages);
   }
-  return;
+  // Same parity as isvalid() above - callers should use this return
+  // value instead of their original `args`, even though GraphQL's own
+  // argument schema already prevents undeclared fields from arriving in
+  // `args` in the first place (this is about consistency, not closing a
+  // real gap the way the REST version's fix does).
+  return result.data;
 };

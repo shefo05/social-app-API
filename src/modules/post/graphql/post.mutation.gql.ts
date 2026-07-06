@@ -22,12 +22,11 @@ export const postMutationGql = {
       args: { content: string; attachments: string[] },
       context: any,
     ) => {
-      isAuthGQL(context);
-      // console.log(context);
-      await isvalidGQL(createPostSchema, args);
+      await isAuthGQL(context);
+      const validated = await isvalidGQL(createPostSchema, args);
 
       return await postService.create(
-        args,
+        validated,
         new Types.ObjectId(context.payload.sub),
       );
     },
@@ -49,14 +48,13 @@ export const postMutationGql = {
       },
       context: any,
     ) => {
-      isAuthGQL(context);
-      // console.log(context);
-      await isvalidGQL(updatePostSchema, args);
+      await isAuthGQL(context);
+      const validated = await isvalidGQL(updatePostSchema, args);
 
       return await postService.update(
         new Types.ObjectId(args.postId),
         new Types.ObjectId(context.payload.sub),
-        args,
+        validated,
       );
     },
   },
@@ -66,7 +64,7 @@ export const postMutationGql = {
       postId: { type: new GraphQLNonNull(GraphQLString) },
     },
     resolve: async (_: any, args: { postId: string },context:any) => {
-      isAuthGQL(context);
+      await isAuthGQL(context);
 
       const deletedCount = await postService.delete(
         new Types.ObjectId(args.postId),
