@@ -23,11 +23,20 @@ router.post(
   "/:receiverId",
   isAuthenticated,
   async (req: Request, res: Response, next: NextFunction) => {
-    await requestService.sendRequest(
+    const createdRequest = await requestService.sendRequest(
       req.user._id,
       req.params.receiverId as string,
     );
-    return res.sendStatus(204);
+    // Was a bare 204 - the frontend had to round-trip to GET
+    // /request/dashboard just to learn the new request's _id for the
+    // cancel toggle. Same populated shape as that endpoint's
+    // incomingRecent/outgoingRecent entries (see sendRequest's return),
+    // matching this controller's own /dashboard convention of `data`
+    // being the payload itself, not nested under a named key.
+    return res.status(201).json({
+      success: true,
+      data: createdRequest,
+    });
   },
 );
 

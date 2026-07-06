@@ -63,10 +63,12 @@ class RequestService {
       receiver,
     });
 
-    // Unlike REST's getDashboard() (which returns bare sender/receiver
-    // ids today - no populate there), populate the sender specifically
-    // for this event: an unpopulated id is close to useless for a live
-    // notification, which is the entire point of this event existing.
+    // Populate both parties for the response/event - an unpopulated id
+    // is close to useless both for the live socket notification and for
+    // the caller's own response (they need the created _id to wire up
+    // the cancel toggle without a round-trip to GET /request/dashboard).
+    // receiverExist is already loaded in full above; only sender needs
+    // a fresh fetch here.
     const senderUser = await this._userRepo.getOne(
       { _id: sender },
       "userName profilePic",
@@ -75,20 +77,36 @@ class RequestService {
     // as post/comment create() - IRequest doesn't model timestamps
     // either, so ._id/.createdAt need a cast regardless.
     const createdRequestDoc = createdRequest as any;
+
+    const senderPayload = senderUser
+      ? {
+          _id: senderUser._id.toString(),
+          userName: senderUser.userName,
+          profilePic: senderUser.profilePic,
+        }
+      : { _id: sender.toString() };
+    const receiverPayload = {
+      _id: receiverExist._id.toString(),
+      userName: receiverExist.userName,
+      profilePic: receiverExist.profilePic,
+    };
+
     getRealtimeGateway()?.emitToUser(receiver.toString(), "request:new", {
       _id: createdRequestDoc._id.toString(),
-      sender: senderUser
-        ? {
-            _id: senderUser._id.toString(),
-            userName: senderUser.userName,
-            profilePic: senderUser.profilePic,
-          }
-        : { _id: sender.toString() },
+      sender: senderPayload,
       receiver: receiver.toString(),
       createdAt: createdRequestDoc.createdAt,
     });
 
-    return createdRequest;
+    // Same populated shape as GET /request/dashboard's incomingRecent/
+    // outgoingRecent entries, so the frontend can drop this straight into
+    // that same list's state instead of round-tripping to fetch it back.
+    return {
+      _id: createdRequestDoc._id.toString(),
+      sender: senderPayload,
+      receiver: receiverPayload,
+      createdAt: createdRequestDoc.createdAt,
+    };
   }
 
   async acceptRequest(userId: mongoose.Types.ObjectId, id: string) {
